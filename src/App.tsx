@@ -1327,15 +1327,15 @@ The image displays an extremely clean focus on the foreground model with a vinta
               )}
 
               {/* Real Responsive Image Viewport Block */}
-              <div className="relative max-w-full max-h-full aspect-[4/3] rounded-lg shadow-2xl border border-white/10 overflow-hidden flex items-center justify-center bg-black">
+              <div className="relative w-full h-full rounded-xl shadow-2xl overflow-hidden flex items-center justify-center bg-transparent transition-all duration-500">
                 {viewMode === "split" ? (
                   // Interactive manual split screen slider view
-                  <div className="relative w-full h-full select-none cursor-ew-resize overflow-hidden">
+                  <div className="relative w-full h-full select-none cursor-ew-resize overflow-hidden flex items-center justify-center">
                     {/* Before Image (Left Layer container) */}
                     <img 
                       src={getActiveImageUrl()} 
                       alt="Raw unenhanced source" 
-                      className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-all duration-500 ease-in-out"
+                      className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none transition-all duration-500 ease-in-out"
                       style={{ 
                         filter: activePresetId === "old_photo" ? "sepia(0.8) contrast(0.6) brightness(0.8) grayscale(1)" : "contrast(0.7) brightness(0.9) saturate(0.6)",
                       }}
@@ -1343,7 +1343,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
 
                     {/* After Image (Right Layer with Clip Path) */}
                     <div 
-                      className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden" 
+                      className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden flex items-center justify-center" 
                       style={{ 
                         clipPath: `polygon(${splitSliderPos}% 0, 100% 0, 100% 100%, ${splitSliderPos}% 100%)` 
                       }}
@@ -1352,7 +1352,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
                         src={getActiveImageUrl()} 
                         alt="AI enhanced focus" 
                         style={getFilterStyle()} 
-                        className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-all duration-500 ease-in-out"
+                        className="absolute inset-0 w-full h-full object-contain select-none pointer-events-none transition-all duration-500 ease-in-out"
                       />
                     </div>
 
@@ -1370,15 +1370,15 @@ The image displays an extremely clean focus on the foreground model with a vinta
                   </div>
                 ) : (
                   // Standard View (Original or Enhanced modes toggled cleanly)
-                  <div className="relative w-full h-full overflow-hidden">
+                  <div className="relative w-full h-full overflow-hidden flex items-center justify-center">
                     {/* Background Layer underlay */}
                     {workspaceData.layers.find(l => l.type === "Background")?.visible && (
-                      <div className="absolute inset-0 bg-slate-900 overflow-hidden z-0">
+                      <div className="absolute inset-0 overflow-hidden z-0 flex items-center justify-center">
                         <img 
                           src={getActiveImageUrl()} 
                           alt="Main Active Canvas Asset" 
                           style={getFilterStyle()} 
-                          className="w-full h-full object-cover select-none transition-all duration-500 ease-in-out"
+                          className="w-full h-full object-contain select-none transition-all duration-500 ease-in-out"
                         />
                       </div>
                     )}
@@ -1402,7 +1402,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
                           ? "circle(38% at 50% 45%)" // simple simulation of extracted subject contour geometry
                           : undefined
                       }} 
-                      className={`absolute inset-0 w-full h-full object-cover select-none transition-all duration-500 ease-in-out pointer-events-none ${
+                      className={`absolute inset-0 w-full h-full object-contain select-none transition-all duration-500 ease-in-out pointer-events-none ${
                         !workspaceData.layers.find(l => l.type === "Background")?.visible ? "drop-shadow-[0_20px_50px_rgba(0,210,255,0.3)] animate-pulse" : ""
                       }`}
                     />
