@@ -1,0 +1,6 @@
+{
+  "name": "AI Media Studio Ultra X",
+  "description": "Professional high-performance desktop studio for background removal, photo restoration, layer detection, cosmetic skin retouch, and generative creative styling assistance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

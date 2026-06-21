@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Validation helper
+    function isValidId(id) {
+      return id is string && id.size() <= 64 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidActivation(data) {
+      return data.keys().hasAll(['licenseKey', 'deviceId', 'activatedAt'])
+        && data.keys().size() == 3
+        && data.licenseKey is string
+        && data.licenseKey.size() == 13
+        && data.licenseKey.matches('^[A-Z0-9]{13}$')
+        && data.deviceId is string
+        && data.deviceId.size() <= 64
+        && data.activatedAt is timestamp;
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['id', 'title', 'description', 'status', 'client', 'assets', 'tasks', 'createdAt', 'updatedAt'])
+        && data.keys().size() == 9
+        && data.id is string
+        && data.id.size() <= 64
+        && data.title is string
+        && data.title.size() <= 200
+        && data.status is string
+        && data.status.size() <= 64
+        && data.client is map
+        && data.assets is list
+        && data.tasks is list;
+    }
+
+    match /licenses/{licenseId} {
+      allow get: if isValidId(licenseId);
+      
+      // On creation: verify document ID matches key, validation check, temporal check
+      allow create: if isValidId(licenseId) 
+        && licenseId == request.resource.data.licenseKey 
+        && isValidActivation(request.resource.data)
+        && request.resource.data.activatedAt == request.time;
+        
+      // Single-PC lock is enforced because once a document is created for high-security activation, 
+      // updates are restricted unless existing deviceId matches incoming deviceId to ensure single-PC boundary
+      allow update: if isValidId(licenseId)
+        && isValidActivation(request.resource.data)
+        && request.resource.data.licenseKey == resource.data.licenseKey
+        && request.resource.data.deviceId == resource.data.deviceId
+        && request.resource.data.activatedAt == resource.data.activatedAt;
+        
+      allow delete: if false; // Licenses cannot be deleted from client side
+    }
+
+    match /projects/{projectId} {
+      allow read, delete: if isValidId(projectId);
+      allow create, update: if isValidId(projectId)
+        && isValidProject(request.resource.data);
+    }
+  }
+}

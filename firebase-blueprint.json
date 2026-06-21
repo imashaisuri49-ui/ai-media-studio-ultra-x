@@ -1,0 +1,52 @@
+{
+  "entities": {
+    "license_activation": {
+      "title": "License Activation Record",
+      "description": "Information about a validated 13-character mixed alphanumeric license key activated on a specific hardware signature.",
+      "type": "object",
+      "properties": {
+        "licenseKey": {
+          "type": "string",
+          "description": "The activated 13-character alphanumeric license key"
+        },
+        "deviceId": {
+          "type": "string",
+          "description": "Hardware/device fingerprint signature representing single-PC lock"
+        },
+        "activatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp indicating when activation took place"
+        }
+      },
+      "required": ["licenseKey", "deviceId", "activatedAt"]
+    },
+    "project_record": {
+      "title": "Media Studio Project Record",
+      "description": "A structured project workspace document storing related photo/video assets, project-relevant tasks, status details, and client contacts.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique identifer key for this project" },
+        "title": { "type": "string", "description": "The user-assigned display title of the media campaign" },
+        "description": { "type": "string", "description": "Summary or objective statement of the client campaign" },
+        "status": { "type": "string", "enum": ["Planning", "In Progress", "Feedback", "Approved", "Completed"], "description": "The work state classification" },
+        "client": { "type": "object", "description": "Client demographic and details details map record" },
+        "assets": { "type": "array", "description": "Nested media catalogs containing photos, videos and designs details" },
+        "tasks": { "type": "array", "description": "Nested task checklists aligned with priorities and states" },
+        "createdAt": { "type": "string", "description": "System millisecond or relative epoch timestamp denoting initial build" },
+        "updatedAt": { "type": "string", "description": "System millisecond clock recording last modification" }
+      },
+      "required": ["id", "title", "status", "client", "assets", "tasks", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/licenses/{licenseId}": {
+      "schema": "license_activation",
+      "description": "Registry of license activations mapped by their 13-char uppercase key"
+    },
+    "/projects/{projectId}": {
+      "schema": "project_record",
+      "description": "A database collection storing full-stack client project pipelines and asset trackers"
+    }
+  }
+}

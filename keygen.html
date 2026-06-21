@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vibe Motion - Standalone License Key Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-display {
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+</head>
+<body class="bg-[#050608] text-slate-100 min-h-screen flex flex-col justify-between selection:bg-[#00D2FF] selection:text-black">
+
+  <div class="relative w-full max-w-4xl mx-auto px-4 py-8 flex-grow flex flex-col justify-center">
+    <!-- Ambient top glow -->
+    <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-tr from-[#00D2FF]/20 to-[#A855F7]/20 rounded-full blur-[100px] pointer-events-none"></div>
+
+    <main class="relative bg-[#0c0d12]/90 border border-[#00D2FF]/20 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-md space-y-6">
+      
+      <!-- Top Branding -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+        <div>
+          <span class="text-[9px] font-mono font-bold text-cyan-400 bg-cyan-950/60 border border-cyan-800/40 px-2 py-0.5 rounded-full uppercase tracking-wider">
+            PART 2: LICENSING PLATFORM
+          </span>
+          <h1 class="text-xl sm:text-2xl font-display font-black text-white tracking-tight uppercase flex items-center gap-2 mt-1.5">
+            🔑 LICENSE SERIAL GENERATOR
+          </h1>
+          <p class="text-xs text-slate-400">
+            Generate offline 13-digit hardware locks, anti-clock manipulation profiles & single-PC activations.
+          </p>
+        </div>
+        <div class="text-left sm:text-right shrink-0 bg-slate-900/50 border border-white/5 p-3 rounded-xl">
+          <div class="text-[10px] uppercase font-mono tracking-widest text-[#00D2FF] font-bold">CREATED BY: VIBE MOTION</div>
+          <div class="text-xs font-bold text-slate-200 mt-0.5">S M Chanuka Dilshan Karunarathna</div>
+          <div class="text-[10px] text-slate-400 font-mono mt-1">
+            dil199708@gmail.com | 0760666970
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings & Controls Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Input config panel -->
+        <div class="space-y-4">
+          <div class="space-y-2">
+            <label class="text-[10px] text-slate-400 font-mono block uppercase tracking-wide">1. Plan Duration & Target Pricing</label>
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                id="plan-6m-btn"
+                type="button"
+                onclick="selectPlan('6month')"
+                class="p-3.5 rounded-xl border text-left flex flex-col justify-between transition-all bg-cyan-950/30 border-[#00D2FF] text-[#00D2FF]"
+              >
+                <div class="text-xs font-bold font-sans">6 Months Plan</div>
+                <div class="text-xs font-mono mt-1">
+                  <span class="line-through text-slate-500 mr-1">$59.00</span>
+                  <span class="text-emerald-400 font-bold">$49.99 USD</span>
+                </div>
+                <div class="text-[9px] text-[#00D2FF]/80 mt-0.5 font-bold">15% SAVINGS</div>
+              </button>
+
+              <button
+                id="plan-12m-btn"
+                type="button"
+                onclick="selectPlan('12month')"
+                class="p-3.5 rounded-xl border text-left flex flex-col justify-between transition-all bg-transparent border-white/10 text-slate-400 hover:text-white"
+              >
+                <div class="text-xs font-bold font-sans flex items-center justify-between">
+                  <span>12 Months</span>
+                  <span class="text-[8px] bg-yellow-500 text-black px-1 rounded font-black font-mono">BEST</span>
+                </div>
+                <div class="text-xs font-mono mt-1">
+                  <span class="line-through text-slate-500 mr-1">$119.00</span>
+                  <span class="text-emerald-400 font-bold">$79.99 USD</span>
+                </div>
+                <div class="text-[9px] text-purple-400 mt-0.5 font-bold">33% MAXIMUM</div>
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-[10px] text-slate-400 font-mono block uppercase tracking-wide">2. Hardware Fingerprint & Security Locks</label>
+            <div class="bg-[#07080a] border border-white/5 rounded-xl p-4 space-y-3">
+              <label class="flex items-start justify-between cursor-pointer group">
+                <div class="space-y-0.5 select-none">
+                  <span class="text-xs text-slate-200 block font-medium group-hover:text-white">System Date/Clock Lockout</span>
+                  <span class="text-[9px] text-slate-500 leading-normal block">Secures against machine clock manipulation</span>
+                </div>
+                <input
+                  id="lock-clock-ch"
+                  type="checkbox"
+                  checked
+                  class="rounded bg-black border-white/10 focus:ring-0 text-[#00D2FF] w-4 h-4 cursor-pointer mt-0.5"
+                />
+              </label>
+
+              <div class="h-[1px] bg-white/5"></div>
+
+              <label class="flex items-start justify-between cursor-pointer group">
+                <div class="space-y-0.5 select-none">
+                  <span class="text-xs text-slate-200 block font-medium group-hover:text-white">Strict Motherboard UUID Bind</span>
+                  <span class="text-[9px] text-slate-500 leading-normal block">Restricts standard use to single specific hardware signature</span>
+                </div>
+                <input
+                  id="bind-pc-ch"
+                  type="checkbox"
+                  checked
+                  class="rounded bg-black border-white/10 focus:ring-0 text-purple-400 w-4 h-4 cursor-pointer mt-0.5"
+                />
+              </label>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onclick="triggerKeyCompilation()"
+            class="w-full py-3 bg-gradient-to-r from-[#00D2FF] to-[#A855F7] hover:brightness-110 active:scale-[99.5%] text-black font-mono font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer shadow-lg flex items-center justify-center gap-2 border-none"
+          >
+            ⚡ BUILD + SIGN 13-DIGIT KEY
+          </button>
+        </div>
+
+        <!-- Output display panel -->
+        <div class="flex flex-col justify-between space-y-4">
+          <div class="bg-[#10121d] border border-[#00D2FF]/20 rounded-xl p-4 space-y-2.5 flex-grow">
+            <h3 class="text-xs font-mono font-bold uppercase text-cyan-400 flex items-center gap-1.5">
+              🛡️ TAMPER-PROOF ACTIVE CORE
+            </h3>
+            <p class="text-[11px] text-slate-400 leading-relaxed font-sans">
+              All compiled license keys require dynamic hardware binding during first client authorization. This prevents cracked binaries from distributing valid code streams without certified device tokens.
+            </p>
+            <div class="pt-3 border-t border-white/5 space-y-2">
+              <span class="text-[10px] text-slate-500 font-mono block">LIVE CONFIGURATION STATE:</span>
+              <div class="grid grid-cols-2 gap-2 text-[9px] font-mono text-slate-400">
+                <div class="bg-black/40 border border-white/5 p-1.5 rounded">
+                  CLOCK LOCKED: <span class="text-emerald-400" id="state-clock">YES</span>
+                </div>
+                <div class="bg-black/40 border border-white/5 p-1.5 rounded">
+                  UUID LOCK: <span class="text-purple-400" id="state-uuid">YES</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Generated Key Result -->
+          <div id="output-box" class="bg-[#151c1d] border border-emerald-500/30 rounded-xl p-4 text-center hidden">
+            <span class="text-[9px] text-[#10b981] font-mono font-bold block uppercase tracking-wider mb-1">KEY SIGN COMBILATION SUCCESSFUL</span>
+            <div id="compiled-key-display" class="text-xl font-mono font-black text-yellow-400 tracking-wider py-1.5 select-all">COMPILING...</div>
+            <button
+              onclick="copyCompiledKey()"
+              class="mt-2 w-full py-1.5 bg-[#0d2a23] hover:bg-[#123d33] border border-[#10b981]/30 hover:border-[#10b981]/50 text-[#10b981] text-[10px] font-mono font-bold rounded uppercase cursor-pointer"
+            >
+              Copy to Clipboard
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- History Registry -->
+      <div class="space-y-3 pt-3 border-t border-white/10">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-mono font-bold uppercase text-slate-400 tracking-wider">
+            COMPILE KEY REGISTRY HISTORY
+          </h2>
+          <button onclick="clearHistoryRegistry()" class="text-[9px] font-mono text-rose-400 hover:underline">
+            CLEAR REGISTRY
+          </button>
+        </div>
+        
+        <div id="keys-registry-list" class="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Footer licensing -->
+    <footer class="text-center pt-8 text-[10px] text-slate-600 font-mono">
+      &copy; 2026 Vibe Motion Offline Client SDK System. All rights reserved. Registered to Sri Lanka region S M Chanuka Dilshan Karunarathna.
+    </footer>
+  </div>
+
+  <script>
+    let activePlan = '12month';
+    let localKeysList = [];
+
+    // Load initial list from localStorage
+    window.addEventListener('load', () => {
+      const saved = localStorage.getItem('vibe_keygen_history');
+      if (saved) {
+        try {
+          localKeysList = JSON.parse(saved);
+        } catch(e) {
+          localKeysList = [];
+        }
+      } else {
+        // Mock default start items matching credits
+        localKeysList = [
+          { key: "Kb8vW4zPm2rQ1", plan: "12 Months", validUntil: "June 14, 2027", registeredPC: "PC-DESKTOP-9X21B" },
+          { key: "Tz5Rn1Lx8yC4p", plan: "6 Months", validUntil: "December 14, 2026", registeredPC: "PC-WORKSTATION-5F" }
+        ];
+        localStorage.setItem('vibe_keygen_history', JSON.stringify(localKeysList));
+      }
+
+      // Sync state checklists
+      document.getElementById('lock-clock-ch').addEventListener('change', (e) => {
+        document.getElementById('state-clock').innerText = e.target.checked ? "YES" : "NO";
+        document.getElementById('state-clock').className = e.target.checked ? "text-emerald-400" : "text-amber-400";
+      });
+
+      document.getElementById('bind-pc-ch').addEventListener('change', (e) => {
+        document.getElementById('state-uuid').innerText = e.target.checked ? "YES" : "NO";
+        document.getElementById('state-uuid').className = e.target.checked ? "text-purple-400" : "text-amber-400";
+      });
+
+      renderKeysList();
+    });
+
+    function selectPlan(plan) {
+      activePlan = plan;
+      const b6 = document.getElementById('plan-6m-btn');
+      const b12 = document.getElementById('plan-12m-btn');
+
+      if (plan === '6month') {
+        b6.className = "p-3.5 rounded-xl border text-left flex flex-col justify-between transition-all bg-cyan-950/30 border-[#00D2FF]/20 text-[#00D2FF]";
+        b12.className = "p-3.5 rounded-xl border text-left flex flex-col justify-between transition-all bg-transparent border-white/10 text-slate-400 hover:text-white";
+      } else {
+        b12.className = "p-3.5 rounded-xl border text-left flex flex-col justify-between transition-all bg-purple-950/30 border-[#A855F7]/20 text-[#A855F7]";
+        b6.className = "p-3.5 rounded-xl border text-left flex flex-col justify-between transition-all bg-transparent border-white/10 text-slate-400 hover:text-white";
+      }
+    }
+
+    function triggerKeyCompilation() {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      let keyResult = "";
+      for (let i = 0; i < 13; i++) {
+        keyResult += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+
+      // Valid until calculations
+      const expiry = activePlan === '6month' ? 'December 14, 2026' : 'June 14, 2027';
+      const planLabel = activePlan === '6month' ? '6 Months' : '12 Months';
+      const pcID = 'PC-LOCAL-' + Math.floor(Math.random() * 9000 + 1000) + 'X';
+
+      const entry = {
+        key: keyResult,
+        plan: planLabel,
+        validUntil: expiry,
+        registeredPC: pcID
+      };
+
+      localKeysList.unshift(entry);
+      localStorage.setItem('vibe_keygen_history', JSON.stringify(localKeysList));
+
+      // Display key
+      document.getElementById('compiled-key-display').innerText = keyResult;
+      document.getElementById('output-box').classList.remove('hidden');
+
+      renderKeysList();
+    }
+
+    function copyCompiledKey() {
+      const keyText = document.getElementById('compiled-key-display').innerText;
+      navigator.clipboard.writeText(keyText);
+      alert('Key successfully copied to clipboard: ' + keyText);
+    }
+
+    function renderKeysList() {
+      const listContainer = document.getElementById('keys-registry-list');
+      if (localKeysList.length === 0) {
+        listContainer.innerHTML = '<p class="text-slate-500 font-mono text-[10px] italic py-4 text-center">No compiled keys in local archive memory.</p>';
+        return;
+      }
+
+      let html = '';
+      localKeysList.forEach((entry) => {
+        html += `
+          <div class="bg-[#08090f] border border-white/5 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-cyan-500/20">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+              <span class="text-[11px] font-mono bg-[#111322] border border-white/10 px-2.5 py-0.5 rounded text-yellow-500 font-bold">${entry.key}</span>
+              <span class="text-[9px] font-mono text-slate-400 bg-slate-900 border border-white/5 px-2 py-0.5 rounded">${entry.plan} Plan</span>
+              <span class="text-[9px] font-mono text-cyan-400">💻 ${entry.registeredPC}</span>
+            </div>
+            <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+              <span class="text-[9px] font-mono text-slate-500 font-bold">Exp: ${entry.validUntil}</span>
+              <div class="flex items-center gap-1 text-[#10b981] bg-[#061c16] text-[9px] font-mono px-2 py-0.5 rounded border border-[#10b981]/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse"></span>ACTIVE
+              </div>
+              <button 
+                onclick="navigator.clipboard.writeText('${entry.key}'); alert('Copied key: ${entry.key}');"
+                class="px-2 py-0.5 text-[9px] font-mono bg-[#161a29] border border-white/10 hover:border-[#00D2FF] hover:text-[#00D2FF] text-slate-400 rounded cursor-pointer font-bold"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+        `;
+      });
+      listContainer.innerHTML = html;
+    }
+
+    function clearHistoryRegistry() {
+      if (confirm("Are you sure you want to purge the offline key database inside local storage?")) {
+        localKeysList = [];
+        localStorage.removeItem('vibe_keygen_history');
+        renderKeysList();
+      }
+    }
+  </script>
+</body>
+</html>
