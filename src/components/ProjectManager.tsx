@@ -31,11 +31,19 @@ import {
 import { db, isLiveFirebase, doc, setDoc } from "../lib/firebase";
 import { collection, getDocs, deleteDoc, writeBatch } from "firebase/firestore";
 import { ProjectData, ProjectAsset, ProjectTask, ClientInfo } from "../types";
-import { EXPORT_PROFILES } from "../data/demoImages";
+import { EXPORT_PROFILES, DEMO_PRESETS } from "../data/demoImages";
 
 interface ProjectManagerProps {
   onLoadAssetInEditor: (presetId: "portrait" | "product" | "old_photo" | "custom", assetName: string) => void;
   onTriggerMockExport: (exportProfileId: string, onComplete: (profileName: string) => void) => void;
+  currentFilters?: {
+    brightness: number;
+    contrast: number;
+    saturation: number;
+    denoise: number;
+    activePresetId: string;
+    customImage?: string;
+  };
 }
 
 const DEFAULT_PROJECTS: ProjectData[] = [
@@ -141,7 +149,7 @@ const DEFAULT_PROJECTS: ProjectData[] = [
   }
 ];
 
-export default function ProjectManager({ onLoadAssetInEditor, onTriggerMockExport }: ProjectManagerProps) {
+export default function ProjectManager({ onLoadAssetInEditor, onTriggerMockExport, currentFilters }: ProjectManagerProps) {
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -509,6 +517,61 @@ export default function ProjectManager({ onLoadAssetInEditor, onTriggerMockExpor
 
   // Active Context Calculations
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  const activeAssetToExport = selectedProject?.assets.find((a) => a.id === exportTargetAssetId);
+
+  const getExportAssetUrl = () => {
+    const presetId = activeAssetToExport?.presetId || "portrait";
+    if (presetId === "custom") {
+      return currentFilters?.customImage || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=1200";
+    }
+    const matchedPreset = DEMO_PRESETS.find(p => p.id === presetId);
+    return matchedPreset ? matchedPreset.url : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=1200";
+  };
+
+  const getExportFilterStyle = (): React.CSSProperties => {
+    if (!currentFilters) return {};
+    const { brightness, contrast, saturation, denoise, activePresetId } = currentFilters;
+    
+    const saturationBoost = 100 + saturation;
+    const brightnessBoost = 100 + brightness;
+    const contrastBoost = 100 + contrast;
+    
+    let baseStyles = `saturate(${saturationBoost}%) brightness(${brightnessBoost}%) contrast(${contrastBoost}%)`;
+
+    if (denoise > 0) {
+      // Denoise reduces grain by applying subtle high-frequency smoothing / soft focus
+      baseStyles += ` blur(${denoise / 160}px) contrast(${100 - (denoise / 8)}%)`;
+    }
+
+    // Apply specific sepia old photo presets dynamically if applicable
+    const activePreset = activeAssetToExport?.presetId || activePresetId;
+    if (activePreset === "old_photo") {
+      baseStyles += ` sepia(30%) saturate(110%)`; 
+    }
+    
+    return {
+      filter: baseStyles,
+      transition: "filter 0.3s ease"
+    };
+  };
+
+  const getAspectRatioClass = (profileId: string) => {
+    const profile = EXPORT_PROFILES.find(p => p.id === profileId);
+    if (!profile) return "aspect-square h-40";
+    
+    switch (profile.aspectRatio) {
+      case "9:16":
+        return "aspect-[9/16] h-40 w-auto";
+      case "4:5":
+        return "aspect-[4/5] h-40 w-auto";
+      case "16:9":
+        return "aspect-video w-full h-auto max-h-[120px]";
+      case "2:3":
+        return "aspect-[2/3] h-40 w-auto";
+      default:
+        return "aspect-square h-36 w-auto";
+    }
+  };
 
   // Global Project Stats
   const totalProjects = projects.length;
@@ -1108,6 +1171,34 @@ export default function ProjectManager({ onLoadAssetInEditor, onTriggerMockExpor
             <p className="text-xs text-slate-400 leading-relaxed font-sans">
               Choose the targeted publication layout. The compiler will align high-fidelity layers and downsample output automatically.
             </p>
+
+            {/* Live Render Specimen Preview (Thumbnail and dynamic filter representation) */}
+            <div className="bg-[#0f1016] border border-white/5 rounded-lg p-3 flex flex-col items-center justify-center space-y-2">
+              <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block font-bold self-start">Live Render Specimen</span>
+              
+              <div className="relative overflow-hidden rounded bg-black/65 flex items-center justify-center max-w-[200px] w-full border border-white/10 shadow-inner p-1">
+                <div className={`overflow-hidden rounded relative flex items-center justify-center transition-all duration-300 ${getAspectRatioClass(selectedProfileId)}`}>
+                  <img 
+                    src={getExportAssetUrl()} 
+                    style={getExportFilterStyle()}
+                    className="w-full h-full object-cover rounded transition-all"
+                    referrerPolicy="no-referrer"
+                    alt="Active export thumbnail preview"
+                  />
+                  
+                  {/* Aspect Ratio Badge overlay */}
+                  <div className="absolute bottom-1 right-1 bg-black/80 text-[7px] font-mono px-1 py-0.5 rounded text-cyan-400 border border-white/5 uppercase">
+                    {EXPORT_PROFILES.find(p => p.id === selectedProfileId)?.aspectRatio}
+                  </div>
+                </div>
+              </div>
+
+              {/* Format details display */}
+              <div className="w-full flex justify-between items-center text-[9px] font-mono text-slate-500 border-t border-white/5 pt-1.5">
+                <span>Platform: {EXPORT_PROFILES.find(p => p.id === selectedProfileId)?.platform}</span>
+                <span className="text-purple-400 font-bold">{EXPORT_PROFILES.find(p => p.id === selectedProfileId)?.dimensions}</span>
+              </div>
+            </div>
 
             <div className="space-y-1 text-xs">
               <label className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block font-bold">Target Layout Profile</label>

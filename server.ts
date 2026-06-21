@@ -118,9 +118,22 @@ This 1940s photograph suffers from typical age-related paper emulsion breakdown 
   }
 };
 
-// API Route: Health Check
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", time: new Date() });
+app.post("/api/download-backup-zip", (req, res) => {
+  try {
+    const backupData = req.body;
+    const zip = new AdmZip();
+    zip.addFile("backup_01_update.json", Buffer.from(JSON.stringify(backupData, null, 2)));
+    
+    const zipBuffer = zip.toBuffer();
+    res.set({
+      "Content-Type": "application/zip",
+      "Content-Disposition": 'attachment; filename="files_and_data_backup_01.zip"',
+      "Content-Length": zipBuffer.length
+    });
+    res.send(zipBuffer);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to compile backup ZIP."});
+  }
 });
 
 app.get("/api/download-keygen-zip", (req, res) => {
@@ -378,7 +391,7 @@ app.post("/api/analyze", async (req, res) => {
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Gemini API call timed out after 3.5s")), 3500)
+      setTimeout(() => reject(new Error("Gemini API call timed out after 15s")), 15000)
     );
 
     const callResult = await Promise.race([fetchPromise, timeoutPromise]);
@@ -454,7 +467,7 @@ app.post("/api/assistant", async (req, res) => {
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Gemini API call timed out after 3.5s")), 3500)
+      setTimeout(() => reject(new Error("Gemini API call timed out after 15s")), 15000)
     );
 
     const callResult = await Promise.race([fetchPromise, timeoutPromise]);
@@ -474,9 +487,6 @@ app.post("/api/assistant", async (req, res) => {
   }
 });
 
-import tailwindcss from '@tailwindcss/vite';
-import react from '@vitejs/plugin-react';
-
 // Configure Vite middleware in development or express.static in production
 async function configureServer() {
   if (process.env.NODE_ENV !== "production") {
@@ -484,13 +494,6 @@ async function configureServer() {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
-      configFile: false,
-      plugins: [react(), tailwindcss()],
-      resolve: {
-        alias: {
-          '@': path.resolve(process.cwd(), '.'),
-        },
-      },
     });
     app.use(vite.middlewares);
   } else {

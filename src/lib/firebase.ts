@@ -1,14 +1,17 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { getFirestore, initializeFirestore, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 import firebaseConfig from "../../firebase-applet-config.json";
 
 let db: any = null;
+let auth: any = null;
 let isLiveFirebase = false;
 
 if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey.trim() !== "") {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    db = getFirestore(app);
+    db = initializeFirestore(app, { experimentalForceLongPolling: true });
+    auth = getAuth(app);
     isLiveFirebase = true;
     console.log("[Firebase] Sync engine successfully initialized.");
   } catch (err) {
@@ -54,4 +57,4 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-export { db, isLiveFirebase, doc, setDoc, getDoc, serverTimestamp };
+export { db, auth, isLiveFirebase, doc, setDoc, getDoc, serverTimestamp };

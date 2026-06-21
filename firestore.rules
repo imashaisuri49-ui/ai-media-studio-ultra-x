@@ -61,5 +61,25 @@ service cloud.firestore {
       allow create, update: if isValidId(projectId)
         && isValidProject(request.resource.data);
     }
+    
+        // Security roles rules
+    function isAdmin() {
+      return request.auth != null && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin');
+    }
+    
+    function isDeveloperOrAdmin() {
+      return request.auth != null && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'developer', 'super_admin']);
+    }
+
+    match /users/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isDeveloperOrAdmin());
+      allow create: if request.auth != null && request.auth.uid == userId; // Users can create their own doc
+      allow update, delete: if isAdmin() || (request.auth != null && request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])); // Prevent self role elevation
+    }
+
+    match /activity_logs/{logId} {
+      allow read: if isDeveloperOrAdmin();
+      allow create: if isDeveloperOrAdmin() || request.auth != null; // They can log login actions
+    }
   }
 }

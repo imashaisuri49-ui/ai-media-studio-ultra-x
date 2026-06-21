@@ -17,6 +17,7 @@ export interface LayerItem {
   fontInfo?: FontInfo;
   x?: number; // relative pos %
   y?: number; // relative pos %
+  blendMode?: string;
 }
 
 export interface EditingSuggestion {
@@ -40,6 +41,7 @@ export interface PresetLook {
     skinSmooth?: number;
     colorization?: number;
     sharpen?: number;
+    denoise?: number;
   };
 }
 

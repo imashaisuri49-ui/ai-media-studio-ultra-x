@@ -34,21 +34,36 @@ import {
   AlertTriangle,
   Type as TypeIcon,
   Briefcase,
-  Moon,
-  Sun
+  Play,
+  Pause,
+  Save,
+  Plus,
+  Mail,
+  Trash2,
+  Undo,
+  Redo
 } from "lucide-react";
-
-import { useTheme } from "next-themes";
 
 import { DEMO_PRESETS, PRESET_LOOKS, EXPORT_PROFILES } from "./data/demoImages";
 import { LayerItem, EditingSuggestion, PresetLook, ExportProfile } from "./types";
 import GpuPerformance from "./components/GpuPerformance";
 import LicenseHandler from "./components/LicenseHandler";
 import ProjectManager from "./components/ProjectManager";
+import { APP_THEMES } from "./data/themes";
+import DeveloperControlCenter from "./components/DeveloperControlCenter";
+import { DashboardView } from "./components/DashboardView";
+import { EnhancementView } from "./components/EnhancementView";
+import { DesignAssistantView } from "./components/DesignAssistantView";
+import { ExportCenterView } from "./components/ExportCenterView";
+import { UpgradeView } from "./components/UpgradeView";
+import AboutModal from "./components/AboutModal";
+import PaymentModal from "./components/PaymentModal";
+import SecureGateway from "./components/SecureGateway";
+import { PresetStudioView } from "./components/PresetStudioView";
+import { db, isLiveFirebase, doc, setDoc } from "./lib/firebase";
+import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
-  const { theme, setTheme } = useTheme();
-
   // Preset state
   const [activePresetId, setActivePresetId] = useState<"portrait" | "product" | "old_photo" | "custom">("portrait");
   const [customImage, setCustomImage] = useState<string | null>(null);
@@ -91,11 +106,139 @@ The image displays an extremely clean focus on the foreground model with a vinta
 * **Suggested Action**: Use the **Acne & Skin Smooth** utility at 45% power to preserve raw skin pores while blending micro-distractions.`
   });
 
+  // Undo/Redo tracking states
+  const [undoStack, setUndoStack] = useState<any[]>([]);
+  const [redoStack, setRedoStack] = useState<any[]>([]);
+
+  // Wrap setWorkspaceData with history tracking
+  const setWorkspaceDataWithHistory = (
+    valueOrUpdater: any | ((prev: any) => any)
+  ) => {
+    setWorkspaceData(prev => {
+      const nextState = typeof valueOrUpdater === "function" ? valueOrUpdater(prev) : valueOrUpdater;
+      setUndoStack(u => [...u.slice(-49), prev]);
+      setRedoStack([]);
+      return nextState;
+    });
+  };
+
+  const handleUndo = () => {
+    if (undoStack.length === 0) return;
+    const prev = undoStack[undoStack.length - 1];
+    const remainingUndo = undoStack.slice(0, -1);
+    
+    setWorkspaceData(current => {
+      setRedoStack(r => [...r, current]);
+      setUndoStack(remainingUndo);
+      return prev;
+    });
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    const remainingRedo = redoStack.slice(0, -1);
+    
+    setWorkspaceData(current => {
+      setUndoStack(u => [...u, current]);
+      setRedoStack(remainingRedo);
+      return next;
+    });
+  };
+
   // UI state
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>("layer-2");
   const [viewMode, setViewMode] = useState<"original" | "enhanced" | "split">("enhanced");
   const [splitSliderPos, setSplitSliderPos] = useState(50); // percentage for split view slider
-  const [activeTab, setActiveTab] = useState<"editor" | "assistant" | "batch" | "pro-features" | "projects">("editor");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "editor" | "presets" | "enhancement" | "design" | "export" | "license" | "themes" | "upgrade">("dashboard");
+  
+  // Custom theme managers and environments state
+  const [activeThemeId, setActiveThemeId] = useState<string>(() => localStorage.getItem("media_studio_current_theme_id") || "mac-dark");
+  const [trialDays, setTrialDays] = useState<number>(() => {
+    const saved = localStorage.getItem("media_studio_trial_days_remaining");
+    return saved !== null ? parseInt(saved, 10) : 999;
+  });
+  // Secure Developer Gateway State
+  const [showSecureGateway, setShowSecureGateway] = useState<boolean>(false);
+  const [isDevModeActive, setIsDevModeActive] = useState<boolean>(false);
+
+  const logoClicksRef = useRef<number>(0);
+  const logoTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleLogoClick = () => {
+    logoClicksRef.current += 1;
+    if (logoClicksRef.current >= 3) {
+      setShowSecureGateway(true);
+      logoClicksRef.current = 0;
+      if (logoTimerRef.current) clearTimeout(logoTimerRef.current);
+    } else {
+      if (!logoTimerRef.current) {
+        logoTimerRef.current = setTimeout(() => {
+          logoClicksRef.current = 0;
+          logoTimerRef.current = null;
+        }, 3000);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (window.location.pathname === '/developer-control-center') {
+      setShowSecureGateway(true);
+      window.history.replaceState(null, '', '/');
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        setShowSecureGateway(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Keyboard shortcut listener for Undo / Redo
+  useEffect(() => {
+    const handleUndoRedoKeys = (e: KeyboardEvent) => {
+      const isCmdOrCtrl = e.ctrlKey || e.metaKey;
+      if (isCmdOrCtrl && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handleUndoRedoKeys);
+    return () => window.removeEventListener('keydown', handleUndoRedoKeys);
+  }, [undoStack, redoStack]);
+
+  const [showAboutModal, setShowAboutModal] = useState<boolean>(false);
+  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
+  const [passcodeAttemptsLeft, setPasscodeAttemptsLeft] = useState<number>(8);
+
+  const [sriLankaTime, setSriLankaTime] = useState("");
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+      const slDate = new Date(utc + 3600000 * 5.5);
+      setSriLankaTime(slDate.toLocaleTimeString("en-US", {
+        hour12: true,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }) + " (Colombo, LK Time UTC+5:30)");
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const [isDraggingSplit, setIsDraggingSplit] = useState(false);
   const splitContainerRef = useRef<HTMLDivElement>(null);
 
@@ -123,9 +266,15 @@ The image displays an extremely clean focus on the foreground model with a vinta
   const [liveApiStatus, setLiveApiStatus] = useState<"healthy" | "quota_exceeded" | "high_demand" | "offline">("healthy");
 
   // Module 12 Billing and License Key State
-  const [licenseKey, setLicenseKey] = useState("");
-  const [isLicenseActivated, setIsLicenseActivated] = useState(false);
-  const [isPremiumPlan, setIsPremiumPlan] = useState(false);
+  const [licenseKey, setLicenseKey] = useState("LIFETIME-PRO-UNLOCK-100X");
+  const [isLicenseActivated, setIsLicenseActivated] = useState<boolean>(() => {
+    const saved = localStorage.getItem("media_studio_license_active");
+    return saved !== null ? saved === "true" : true;
+  });
+  const [isPremiumPlan, setIsPremiumPlan] = useState<boolean>(() => {
+    const saved = localStorage.getItem("media_studio_premium_plan");
+    return saved !== null ? saved === "true" : true;
+  });
   const [showBillingModal, setShowBillingModal] = useState(false);
   const [licenseError, setLicenseError] = useState("");
   const [generatedInvoice, setGeneratedInvoice] = useState<any>(null);
@@ -149,9 +298,220 @@ The image displays an extremely clean focus on the foreground model with a vinta
   const [skinSmoothPower, setSkinSmoothPower] = useState(0); // 0 to 100
   const [blemishReduction, setBlemishReduction] = useState(0); // 0 to 100
   const [eyeEnhancePower, setEyeEnhancePower] = useState(0); // 0 to 100
+  const [denoiseVal, setDenoiseVal] = useState(0); // 0 to 100
+
+  // Lightroom / Photoshop Extended Adjustments
+  const [tempVal, setTempVal] = useState(0);         // Warmth/Coolness: -50 to 50
+  const [tintVal, setTintVal] = useState(0);         // Tint/Color-rotate: -50 to 50
+  const [vibranceVal, setVibranceVal] = useState(0); // Midtone chroma boost: -50 to 50
+  const [highlightsVal, setHighlightsVal] = useState(0); // Exposure highlights: -50 to 50
+  const [shadowsVal, setShadowsVal] = useState(0);       // Exposure shadows: -50 to 50
+  const [sharpenVal, setSharpenVal] = useState(0);       // Pixel contour sharpness: 0 to 100
+
+  // Sizing Output Configurations for Photoshop / Lightroom preset exports
+  const [exportWidth, setExportWidth] = useState(3840);  // Output width up to 4K/8K
+  const [exportHeight, setExportHeight] = useState(2160); // Output height
+  const [exportFileType, setExportFileType] = useState("JPEG"); // JPEG, PNG, WebP, PSD, TIFF
 
   // Drag of bounding-box simulation
   const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Auto-sync files and data to Firebase Cloud on any update
+    if (isLiveFirebase && db) {
+      const backupData = {
+        workspaceData,
+        activePresetId,
+        customImageName,
+        trialDays,
+        isPremiumPlan,
+        timestamp: new Date().toISOString()
+      };
+      setDoc(doc(db, "backups", "backup_01"), backupData).catch(err => {
+        console.error("Auto cloud sync failed", err);
+      });
+    }
+  }, [workspaceData, activePresetId, isPremiumPlan, customImageName, trialDays]);
+
+  const handleBackupToCloudAndZip = async () => {
+    try {
+      const backupData = {
+        workspaceData,
+        activePresetId,
+        customImageName,
+        trialDays,
+        isPremiumPlan,
+        timestamp: new Date().toISOString()
+      };
+      
+      if (isLiveFirebase && db) {
+        await setDoc(doc(db, "backups", "backup_01"), backupData);
+      }
+
+      const response = await fetch('/api/download-backup-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(backupData)
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "files_and_data_backup_01.zip";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to export backup");
+    }
+  };
+
+  // Batch Automation Engine Custom Session State
+  const [batchOps, setBatchOps] = useState<{ id: string; name: string; checked: boolean }[]>(() => {
+    try {
+      const saved = localStorage.getItem("batch_session_ops");
+      if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return [
+      { id: "op-1", name: "Remove All Backgrounds (Isolated Contour Alpha)", checked: true },
+      { id: "op-2", name: "Autofit Crop to Aspect Ratio", checked: true },
+      { id: "op-3", name: "Sub-pixel Portrait Face Recovery Boost", checked: true },
+      { id: "op-4", name: "Equalize Exposure & Lighting Curves", checked: false },
+      { id: "op-5", name: "Cinematic Gold Film Tint Preset", checked: false }
+    ];
+  });
+
+  const [batchQueue, setBatchQueue] = useState<{ id: string; file: string; size: string; progress: number; state: string; label: string }[]>(() => {
+    try {
+      const saved = localStorage.getItem("batch_session_queue");
+      if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return [
+      { id: "bq-1", file: "DSC_8901_ModelPortrait_Raw.CR3", size: "84.2 MB", progress: 100, state: "COMPLETE", label: "Skin smooth & background alpha isolated." },
+      { id: "bq-2", file: "DSC_8902_ModelPortrait_Raw.CR3", size: "90.1 MB", progress: 100, state: "COMPLETE", label: "Skin smooth & background alpha isolated." },
+      { id: "bq-3", file: "DSC_8903_ModelPortrait_Raw.CR3", size: "86.4 MB", progress: 65, state: "RENDERING", label: "Extracting rule-of-thirds facial layers..." },
+      { id: "bq-4", file: "ProductFlask_Catalog_01.PNG", size: "12.8 MB", progress: 0, state: "QUEUED", label: "Awaiting volumetric shadow matrix overlay..." },
+      { id: "bq-5", file: "ProductFlask_Catalog_02.PNG", size: "14.5 MB", progress: 0, state: "QUEUED", label: "Awaiting volumetric shadow matrix overlay..." },
+      { id: "bq-6", file: "HeritageArchivalSepia_1932.TIFF", size: "235 MB", progress: 0, state: "QUEUED", label: "Awaiting neural microscratch fusion rendering..." }
+    ];
+  });
+
+  const [isBatchRunning, setIsBatchRunning] = useState(false);
+  const [batchBackupNotification, setBatchBackupNotification] = useState("");
+  const [newBatchFileName, setNewBatchFileName] = useState("");
+  const [newBatchSize, setNewBatchSize] = useState("45.0 MB");
+
+  // Helper to persist batch state
+  const saveBatchSessionToLocalStorage = (opsList: any, queueList: any) => {
+    localStorage.setItem("batch_session_ops", JSON.stringify(opsList));
+    localStorage.setItem("batch_session_queue", JSON.stringify(queueList));
+  };
+
+  const handleToggleBatchOp = (id: string) => {
+    const updated = batchOps.map(op => op.id === id ? { ...op, checked: !op.checked } : op);
+    setBatchOps(updated);
+    localStorage.setItem("batch_session_ops", JSON.stringify(updated));
+  };
+
+  const handleAddBatchQueueItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBatchFileName.trim()) return;
+    
+    const newItem = {
+      id: `bq-${Date.now()}`,
+      file: newBatchFileName.trim(),
+      size: newBatchSize,
+      progress: 0,
+      state: "QUEUED",
+      label: "Initialized via custom pipeline hook."
+    };
+
+    const updated = [...batchQueue, newItem];
+    setBatchQueue(updated);
+    saveBatchSessionToLocalStorage(batchOps, updated);
+    setNewBatchFileName("");
+  };
+
+  const handleResetBatchQueue = () => {
+    const updated = batchQueue.map(item => ({
+      ...item,
+      progress: 0,
+      state: "QUEUED",
+      label: "Awaiting parallel processing threads..."
+    }));
+    setBatchQueue(updated);
+    setIsBatchRunning(false);
+    saveBatchSessionToLocalStorage(batchOps, updated);
+    setBatchBackupNotification("🔄 Queue reset. Workspace cleared.");
+    setTimeout(() => setBatchBackupNotification(""), 3000);
+  };
+
+  const handleStartBatchProcessing = () => {
+    if (isBatchRunning) {
+      setIsBatchRunning(false);
+      return;
+    }
+
+    // MANDATORY REQUIREMENT: Automatically save session state to local storage BEFORE starting heavy processing
+    saveBatchSessionToLocalStorage(batchOps, batchQueue);
+
+    // Provide premium UI feedback highlighting backup completion
+    setBatchBackupNotification("💾 [Session Secured] State backed up to Local Storage. Thread starting...");
+    setTimeout(() => {
+      setBatchBackupNotification("");
+    }, 4500);
+
+    setIsBatchRunning(true);
+  };
+
+  // Run the batch processing simulator loop
+  useEffect(() => {
+    let intervalId: any = null;
+    if (isBatchRunning) {
+      intervalId = setInterval(() => {
+        setBatchQueue((prevQueue) => {
+          // Find the first index that is not complete
+          const nextIndex = prevQueue.findIndex((item) => item.progress < 100);
+          if (nextIndex === -1) {
+            setIsBatchRunning(false);
+            clearInterval(intervalId);
+            return prevQueue;
+          }
+
+          const updatedQueue = prevQueue.map((item, idx) => {
+            if (idx === nextIndex) {
+              const nextProgress = Math.min(item.progress + 15, 100);
+              const nextState = nextProgress === 100 ? "COMPLETE" : "RENDERING";
+              const nextLabel = nextProgress === 100 
+                ? "Neural passes finalized. Progress secured." 
+                : `Computing multi-threaded filters... (${nextProgress}%)`;
+
+              return {
+                ...item,
+                progress: nextProgress,
+                state: nextState,
+                label: nextLabel
+              };
+            }
+            return item;
+          });
+
+          // Continuously backup progress to local storage so no loss occurs upon browser close
+          localStorage.setItem("batch_session_queue", JSON.stringify(updatedQueue));
+          return updatedQueue;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isBatchRunning]);
 
   // Current preset image URL fallback
   const getActiveImageUrl = () => {
@@ -179,6 +539,8 @@ The image displays an extremely clean focus on the foreground model with a vinta
       const data = await response.json();
       if (data && !data.error) {
         setWorkspaceData(data);
+        setUndoStack([]);
+        setRedoStack([]);
         if (data.liveApiStatus) {
           setLiveApiStatus(data.liveApiStatus);
         } else {
@@ -188,6 +550,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
         setBrightnessVal(0);
         setRawContrastVal(0);
         setSaturationVal(0);
+        setDenoiseVal(0);
         // Look up corresponding editing suggestion defaults
         const bokehSugg = data.editingSuggestions?.find((s: any) => s.id === "bokeh-boost" || s.id === "vignette-focus");
         setCustomBokehVal(bokehSugg ? bokehSugg.current : 0);
@@ -284,7 +647,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
         x: generativeFillCategory === "background" ? 0 : 45,
         y: generativeFillCategory === "background" ? 0 : 40
       };
-      setWorkspaceData(prev => ({
+      setWorkspaceDataWithHistory(prev => ({
         ...prev,
         layers: [newLayer, ...prev.layers.filter(l => generativeFillCategory === "background" ? l.type !== "Background" : true)],
         aiRecommendationMarkdown: prev.aiRecommendationMarkdown + `\n\n* **Generative Fill Active**: Generated "${generativeFillPrompt}" matching seamless contour weights.`
@@ -300,7 +663,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
 
   // Update text layer value (Module 4 Font Recognition)
   const handleUpdateLayerText = (text: string) => {
-    setWorkspaceData(prev => ({
+    setWorkspaceDataWithHistory(prev => ({
       ...prev,
       layers: prev.layers.map(l => {
         if (l.id === selectedLayerId && l.fontInfo) {
@@ -312,7 +675,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
   };
 
   const handleUpdateLayerColor = (color: string) => {
-    setWorkspaceData(prev => ({
+    setWorkspaceDataWithHistory(prev => ({
       ...prev,
       layers: prev.layers.map(l => {
         if (l.id === selectedLayerId && l.fontInfo) {
@@ -324,7 +687,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
   };
 
   const handleUpdateLayerSize = (size: string) => {
-    setWorkspaceData(prev => ({
+    setWorkspaceDataWithHistory(prev => ({
       ...prev,
       layers: prev.layers.map(l => {
         if (l.id === selectedLayerId && l.fontInfo) {
@@ -335,10 +698,34 @@ The image displays an extremely clean focus on the foreground model with a vinta
     }));
   };
 
+  const handleUpdateLayerBlendMode = (blendMode: string) => {
+    setWorkspaceDataWithHistory(prev => ({
+      ...prev,
+      layers: prev.layers.map(l => {
+        if (l.id === selectedLayerId) {
+          return { ...l, blendMode };
+        }
+        return l;
+      })
+    }));
+  };
+
+  const handleUpdateLayerOpacity = (opacity: number) => {
+    setWorkspaceDataWithHistory(prev => ({
+      ...prev,
+      layers: prev.layers.map(l => {
+        if (l.id === selectedLayerId) {
+          return { ...l, opacity };
+        }
+        return l;
+      })
+    }));
+  };
+
   // Toggle Layer visibility
   const toggleLayerVisibility = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setWorkspaceData(prev => ({
+    setWorkspaceDataWithHistory(prev => ({
       ...prev,
       layers: prev.layers.map(l => {
         if (l.id === id) {
@@ -349,9 +736,21 @@ The image displays an extremely clean focus on the foreground model with a vinta
     }));
   };
 
+  // Delete Layer
+  const deleteLayer = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setWorkspaceDataWithHistory(prev => ({
+      ...prev,
+      layers: prev.layers.filter(l => l.id !== id)
+    }));
+    if (selectedLayerId === id) {
+      setSelectedLayerId(null);
+    }
+  };
+
   // Toggle Slider Suggestion toggles
   const toggleSuggestionApplied = (id: string) => {
-    setWorkspaceData(prev => ({
+    setWorkspaceDataWithHistory(prev => ({
       ...prev,
       editingSuggestions: prev.editingSuggestions.map(s => {
         if (s.id === id) {
@@ -369,6 +768,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
     setSaturationVal(look.adjustments.saturation || 0);
     if (look.adjustments.bokeh !== undefined) setCustomBokehVal(look.adjustments.bokeh);
     if (look.adjustments.skinSmooth !== undefined) setSkinSmoothPower(look.adjustments.skinSmooth);
+    setDenoiseVal(look.adjustments.denoise || 0);
   };
 
   // Run Split View dragging calculations
@@ -464,12 +864,31 @@ The image displays an extremely clean focus on the foreground model with a vinta
         transition: "filter 0.3s ease"
       };
     }
-    // Fully adjusted simulated live style
-    const saturationBoost = 100 + saturationVal;
-    const brightnessBoost = 100 + brightnessVal;
-    const contrastBoost = 100 + rawContrastVal;
-    // Layer effects
+    // Fully adjusted simulated live style with extended lightroom curves
+    const saturationBoost = 100 + saturationVal + (vibranceVal * 1.2);
+    const brightnessBoost = 100 + brightnessVal + (highlightsVal / 4) + (shadowsVal / 6);
+    const contrastBoost = 100 + rawContrastVal + (highlightsVal / 3) - (shadowsVal / 4);
+    
+    // Layer effects base
     let baseStyles = `saturate(${saturationBoost}%) brightness(${brightnessBoost}%) contrast(${contrastBoost}%)`;
+
+    // Apply Temperature shifting (-50 to 50)
+    if (tempVal > 0) {
+      baseStyles += ` sepia(${tempVal * 0.6}%) hue-rotate(${-tempVal * 0.15}deg)`;
+    } else if (tempVal < 0) {
+      // Cool blue hue shift simulation
+      baseStyles += ` hue-rotate(${Math.abs(tempVal) * 0.3}deg) saturate(${100 + Math.abs(tempVal) * 0.2}%)`;
+    }
+
+    // Apply Tint shifting (-50 to 50)
+    if (tintVal !== 0) {
+      baseStyles += ` hue-rotate(${tintVal * 0.5}deg)`;
+    }
+
+    if (denoiseVal > 0) {
+      // Denoise reduces grain by applying subtle high-frequency smoothing / soft focus
+      baseStyles += ` blur(${denoiseVal / 160}px) contrast(${100 - (denoiseVal / 8)}%)`;
+    }
 
     if (activePresetId === "old_photo") {
       // In enhanced mode, restore old photo color!
@@ -482,15 +901,44 @@ The image displays an extremely clean focus on the foreground model with a vinta
     };
   };
 
+  const getAppExportAspectRatioClass = (profileId: string) => {
+    const profile = EXPORT_PROFILES.find(p => p.id === profileId);
+    if (!profile) return "aspect-square h-32";
+    
+    switch (profile.aspectRatio) {
+      case "9:16":
+        return "aspect-[9/16] h-32 w-auto";
+      case "4:5":
+        return "aspect-[4/5] h-32 w-auto";
+      case "16:9":
+        return "aspect-video w-full h-auto max-h-[85px]";
+      case "2:3":
+        return "aspect-[2/3] h-32 w-auto";
+      default:
+        return "aspect-square h-28 w-auto";
+    }
+  };
+
+  const activeTheme = APP_THEMES.find(t => t.id === activeThemeId) || APP_THEMES[1];
+
+  if (isDevModeActive) {
+    return (
+      <DeveloperControlCenter
+        onBackToUserMode={() => setIsDevModeActive(false)}
+        sriLankaTime={sriLankaTime}
+      />
+    );
+  }
+
   const activeLayer = workspaceData.layers.find(l => l.id === selectedLayerId);
 
   return (
-    <div className="w-full min-h-screen bg-[#0A0A0C] text-gray-200 font-sans flex flex-col select-none overflow-x-hidden">
+    <div className={`w-full min-h-screen ${activeTheme.bg} ${activeTheme.textMain} font-sans flex flex-col select-none overflow-x-hidden transition-colors duration-300 antialiased`}>
       
       {/* HEADER SECTION --- Top level layout navigation --- */}
-      <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-[#0E0E12] relative z-20">
+      <header className={`h-14 border-b ${activeTheme.border} flex items-center justify-between px-4 ${activeTheme.headerBg} backdrop-blur-md bg-opacity-90 relative z-20 shadow-sm`}>
         <div className="flex items-center space-x-4">
-          <div className="flex space-x-3 items-center">
+          <div onClick={handleLogoClick} className="flex space-x-3 items-center cursor-pointer">
             {/* Professional Studio Logo Icon */}
             <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 via-[#9D50BB] to-cyan-400 p-[1px] shadow-[0_0_12px_rgba(157,80,187,0.45)] group overflow-hidden shrink-0">
               <div className="absolute inset-0 bg-[#0E0E12] opacity-95 rounded-[7px]" />
@@ -504,96 +952,179 @@ The image displays an extremely clean focus on the foreground model with a vinta
               AI Media Studio Ultra X
             </span>
             <span className="text-[10px] font-mono bg-purple-950/80 border border-purple-500/30 text-purple-400 px-1.5 py-0.5 rounded uppercase font-semibold">
-              v2026.1 Win64
+              v2026.1 Enterprise
             </span>
           </div>
 
-          <nav className="flex space-x-1 text-[11px] font-bold uppercase tracking-wider text-gray-400 pl-6 h-full">
-            <button
-              onClick={() => setActiveTab("editor")}
-              className={`px-3 py-1.5 rounded transition ${
-                activeTab === "editor"
-                  ? "text-white bg-white/5 border-b-2 border-[#9D50BB]"
-                  : "hover:text-white hover:bg-white/5"
-              }`}
-            >
-              Ultimate Editor
-            </button>
-            <button
-              onClick={() => setActiveTab("assistant")}
-              className={`px-3 py-1.5 rounded transition ${
-                activeTab === "assistant"
-                  ? "text-white bg-white/5 border-b-2 border-[#9D50BB]"
-                  : "hover:text-white hover:bg-white/5"
-              }`}
-            >
-              Creative AI Assistant
-            </button>
-            <button
-              onClick={() => setActiveTab("batch")}
-              className={`px-3 py-1.5 rounded transition ${
-                activeTab === "batch"
-                  ? "text-white bg-white/5 border-b-2 border-[#9D50BB]"
-                  : "hover:text-white hover:bg-white/5"
-              }`}
-            >
-              Batch Automation
-            </button>
-            <button
-              onClick={() => setActiveTab("projects")}
-              className={`px-3 py-1.5 rounded transition ${
-                activeTab === "projects"
-                  ? "text-white bg-white/5 border-b-2 border-[#9D50BB]"
-                  : "hover:text-white hover:bg-white/5"
-              }`}
-            >
-              Project Workspace
-            </button>
-            <button
-              onClick={() => setActiveTab("pro-features")}
-              className={`px-3 py-1.5 rounded transition ${
-                activeTab === "pro-features"
-                  ? "text-white bg-white/5 border-b-2 border-[#9D50BB]"
-                  : "hover:text-white hover:bg-white/5"
-              }`}
-            >
-              License & Upgrades {isPremiumPlan ? "👑" : "★"}
-            </button>
-          </nav>
+          {/* Main Navigation Menu - HIDDEN IN LOCKED DOWN MODE */}
+          {false && (
+            <nav className="hidden xl:flex space-x-1 text-[11px] font-bold uppercase tracking-wider text-gray-400 pl-4 h-full">
+              <button
+                onClick={() => setActiveTab("dashboard")}
+                className={`px-2.5 py-1.5 rounded transition ${
+                  activeTab === "dashboard"
+                    ? "text-white bg-white/10 border-b-2 border-rose-500"
+                    : "hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => setActiveTab("editor")}
+                className={`px-2.5 py-1.5 rounded transition ${
+                  activeTab === "editor"
+                    ? "text-white bg-white/10 border-b-2 border-[#9D50BB]"
+                    : "hover:text-white hover:bg-white/5"
+                }`}
+              >
+                AI Photo Editor
+              </button>
+              <button
+                onClick={() => setActiveTab("presets")}
+                className={`px-2.5 py-1.5 rounded transition ${
+                  activeTab === "presets"
+                    ? "text-amber-400 bg-white/10 border-b-2 border-amber-500 font-bold"
+                    : "hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Preset Studio ⚡
+              </button>
+              <button
+                onClick={() => setActiveTab("enhancement")}
+                className={`px-2.5 py-1.5 rounded transition ${
+                  activeTab === "enhancement"
+                    ? "text-white bg-white/10 border-b-2 border-cyan-500"
+                    : "hover:text-white hover:bg-white/5"
+                }`}
+              >
+                AI Enhancement
+              </button>
+              <button
+                onClick={() => setActiveTab("design")}
+                className={`px-2.5 py-1.5 rounded transition ${
+                  activeTab === "design"
+                    ? "text-white bg-white/10 border-b-2 border-amber-500"
+                    : "hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Design Assistant
+              </button>
+              <button
+                onClick={() => setActiveTab("export")}
+                className={`px-2.5 py-1.5 rounded transition ${
+                  activeTab === "export"
+                    ? "text-white bg-white/10 border-b-2 border-emerald-500"
+                    : "hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Export Center
+              </button>
+              <button
+                onClick={() => setActiveTab("license")}
+                className={`px-2.5 py-1.5 rounded transition ${
+                  activeTab === "license"
+                    ? "text-white bg-white/10 border-b-2 border-slate-400"
+                    : "hover:text-white hover:bg-white/5"
+                }`}
+              >
+                License Info
+              </button>
+              <button
+                onClick={() => setActiveTab("themes")}
+                className={`px-2.5 py-1.5 rounded transition ${
+                  activeTab === "themes"
+                    ? "text-white bg-white/10 border-b-2 border-pink-400"
+                    : "hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Theme Settings
+              </button>
+              <button
+                onClick={() => setActiveTab("upgrade")}
+                className={`px-2.5 py-1.5 rounded transition ${
+                  activeTab === "upgrade"
+                    ? "text-[#DFB15B] bg-white/10 border-b-2 border-[#DFB15B] font-extrabold"
+                    : "hover:text-white hover:bg-white/5"
+                }`}
+              >
+                Upgrade {isPremiumPlan ? "👑" : "★"}
+              </button>
+            </nav>
+          )}
         </div>
 
         <div className="flex items-center space-x-3">
+          {/* Undo / Redo controls */}
+          <div className="flex items-center bg-white/5 border border-white/10 rounded-lg p-0.5 space-x-1">
+            <button
+              onClick={handleUndo}
+              disabled={undoStack.length === 0}
+              className={`p-1.5 rounded transition ${
+                undoStack.length === 0
+                  ? "text-gray-600 cursor-not-allowed"
+                  : "text-gray-200 hover:text-white hover:bg-white/10"
+              }`}
+              title="Undo Edit (Ctrl+Z)"
+            >
+              <Undo className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={redoStack.length === 0}
+              className={`p-1.5 rounded transition ${
+                redoStack.length === 0
+                  ? "text-gray-600 cursor-not-allowed"
+                  : "text-gray-200 hover:text-white hover:bg-white/10"
+              }`}
+              title="Redo Edit (Ctrl+Y / Ctrl+Shift+Z)"
+            >
+              <Redo className="w-4 h-4" />
+            </button>
+          </div>
+
           <div className="hidden lg:flex items-center px-3 py-1 rounded bg-white/5 border border-white/10 space-x-2">
             <span className="text-[10px] text-emerald-400 font-bold tracking-widest animate-pulse flex items-center gap-1">
               ⚡ GPU ACTIVE
             </span>
-            <span className="text-[10px] font-mono text-gray-500">RTX 4096 Cores • 0.6ms</span>
+            <span className="text-[10px] font-mono text-gray-500">RTX • {activeTheme.type.toUpperCase()}_PIPELINE</span>
           </div>
 
           {isPremiumPlan ? (
-            <div className="flex items-center gap-1 bg-amber-950/40 border border-amber-500/40 px-2 py-1 rounded text-[11px] font-medium text-amber-300">
-              <span>UNLIMITED LICENSE</span>
+            <div className="flex items-center gap-1 bg-amber-950/40 border border-[#DFB15B]/40 px-2 py-1 rounded text-[11px] font-medium text-amber-300">
+              <span className="font-bold tracking-widest uppercase text-[10px]">👑 PRO EDITION</span>
             </div>
           ) : (
-            <button
-              onClick={() => {
-                setActiveTab("pro-features");
-                setShowBillingModal(true);
-              }}
-              className="bg-amber-550 hover:bg-amber-600 text-[10px] font-mono font-bold tracking-widest uppercase border border-amber-400 bg-gradient-to-r from-amber-600 to-yellow-600 text-white px-3 py-1 rounded shadow-[0_0_10px_rgba(217,119,6,0.3)] transition"
-            >
-              Upgrade Free Trial
-            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-rose-400 font-bold bg-rose-950/20 border border-rose-500/30 px-1.5 py-0.5 rounded">TRIAL MODE • {trialDays} DAYS</span>
+              <button
+                onClick={() => {
+                  setActiveTab("upgrade");
+                }}
+                className="bg-amber-550 hover:bg-amber-600 text-[10px] font-mono font-bold tracking-widest uppercase border border-amber-400 bg-gradient-to-r from-amber-600 to-yellow-600 text-white px-2.5 py-1 rounded shadow-[0_0_10px_rgba(217,119,6,0.3)] transition"
+              >
+                Upgrade
+              </button>
+            </div>
           )}
 
-          <button
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="p-1.5 px-2 rounded bg-[#1a1c2a] hover:bg-[#25283d] text-white border border-white/10 flex items-center justify-center transition"
-            title="Toggle Light/Dark Theme"
-          >
-            {theme === "dark" ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-400" />}
-          </button>
-
+          <div className="relative group flex items-center">
+            <select
+              className="p-1 pl-2.5 pr-6 rounded bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-400 text-[10px] font-mono font-bold uppercase transition shadow-[0_0_8px_rgba(99,102,241,0.2)] outline-none cursor-pointer appearance-none"
+              defaultValue="webp"
+              title="Select Export Format"
+            >
+              <option value="png">PNG (Lossless)</option>
+              <option value="jpeg">JPEG (Standard)</option>
+              <option value="webp">WebP (Modern)</option>
+              <option value="avif">AVIF (Next-Gen)</option>
+              <option value="svg">SVG (Vector)</option>
+              <option value="tiff">TIFF (Print)</option>
+            </select>
+            <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none">
+              <Download className="w-3 h-3 text-indigo-400" />
+            </div>
+          </div>
+          
           <button
             onClick={() => {
               const fileInput = document.getElementById("local-img-uploader");
@@ -619,124 +1150,93 @@ The image displays an extremely clean focus on the foreground model with a vinta
       <div className="flex-1 flex overflow-hidden">
         
         {/* SIDE BAR BUTTONS (LEFT) --- Module navigation indicator --- */}
-        <aside className="w-14 border-r border-white/10 flex flex-col items-center py-4 bg-[#0E0E12] space-y-5 justify-between select-none">
-          <div className="flex flex-col items-center space-y-4 w-full">
+        <aside className={`w-14 border-r ${activeTheme.border} flex flex-col items-center py-4 ${activeTheme.sidebarBg} space-y-4 justify-between select-none shrink-0`}>
+          <div className="flex flex-col items-center space-y-3.5 w-full">
+            <div 
+              onClick={() => setActiveTab("dashboard")}
+              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'dashboard' ? 'bg-[#fe5f55]/20 text-red-400 border border-red-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+              title="Workstation Dashboard"
+            >
+              <Briefcase className="w-5 h-5" />
+            </div>
+
             <div 
               onClick={() => setActiveTab("editor")}
-              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'editor' ? 'text-white bg-[#00D2FF]/20 border border-[#00D2FF]/40 shadow-[0_0_8px_rgba(0,210,255,0.2)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
-              title="Creative Image Workspace"
+              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'editor' ? 'bg-purple-950/40 text-purple-400 border border-purple-500/30 font-semibold' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+              title="AI Photographic Canvas"
             >
               <Palette className="w-5 h-5" />
             </div>
 
             <div 
-              onClick={() => setActiveTab("assistant")}
-              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'assistant' ? 'text-white bg-[#9D50BB]/20 border border-[#9D50BB]/40 shadow-[0_0_8px_rgba(157,80,187,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
-              title="Creative AI Scriptor & Copilot"
+              onClick={() => setActiveTab("presets")}
+              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'presets' ? 'bg-amber-950/40 text-amber-400 border border-amber-500/30 font-semibold' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+              title="Custom Preset & Sizing Studio (Photoshop/Lightroom)"
+            >
+              <Sliders className="w-5 h-5" />
+            </div>
+
+            <div 
+              onClick={() => setActiveTab("enhancement")}
+              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'enhancement' ? 'bg-cyan-950/40 text-[#00D2FF] border border-[#00D2FF]/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+              title="AI Enhancement Retouch"
+            >
+              <SlidersHorizontal className="w-5 h-5" />
+            </div>
+
+            <div 
+              onClick={() => setActiveTab("design")}
+              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'design' ? 'bg-amber-950/40 text-amber-400 border border-amber-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+              title="AI Design Assistant"
             >
               <Sparkles className="w-5 h-5 text-purple-400" />
             </div>
 
             <div 
-              onClick={() => setActiveTab("batch")}
-              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'batch' ? 'text-white bg-emerald-950/40 border border-emerald-500/40' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
-              title="Batch Automation Engine"
+              onClick={() => setActiveTab("export")}
+              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'export' ? 'bg-emerald-950/40 text-emerald-450 border border-emerald-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+              title="Export Output Center"
             >
-              <Layers3 className="w-5 h-5 text-emerald-400" />
+              <Download className="w-5 h-5" />
             </div>
 
             <div 
-              onClick={() => setActiveTab("projects")}
-              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'projects' ? 'text-white bg-[#00D2FF]/20 border border-[#00D2FF]/40 shadow-[0_0_8px_rgba(0,210,255,0.2)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
-              title="Project Workspace Hub"
+              onClick={() => setActiveTab("license")}
+              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'license' ? 'bg-slate-900 text-white border border-white/20' : 'text-gray-500 hover:text-slate-300 hover:bg-white/5'}`}
+              title="Hardware License Registry"
             >
-              <Briefcase className="w-5 h-5 text-cyan-400" />
-            </div>
-
-            <div className="w-8 h-[1px] bg-white/10 my-1"></div>
-
-            {/* Editing Tools selection cues */}
-            <div 
-              onClick={() => {
-                setViewMode(viewMode === "split" ? "enhanced" : "split");
-              }}
-              className={`p-2 rounded cursor-pointer transition ${viewMode === "split" ? "text-cyan-400 bg-white/5" : "text-gray-500 hover:text-white"}`}
-              title="Compare Split Preview"
-            >
-              <SlidersHorizontal className="w-4.5 h-4.5" />
+              <Shield className="w-5 h-5" />
             </div>
 
             <div 
-              onClick={() => {
-                // Focus on Text layer automatically
-                const textL = workspaceData.layers.find(l => l.type === "Text");
-                if (textL) setSelectedLayerId(textL.id);
-              }}
-              className={`p-2 rounded cursor-pointer transition ${activeLayer?.type === "Text" ? "text-cyan-400 bg-white/5" : "text-gray-500"}`}
-              title="Select Font / Typography Layer"
+              onClick={() => setActiveTab("themes")}
+              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'themes' ? 'bg-pink-950/35 text-pink-400 border border-pink-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}
+              title="Theme Calibrations"
             >
-              <TypeIcon className="w-4.5 h-4.5" />
+              <Layers3 className="w-5 h-5" />
             </div>
 
             <div 
-              onClick={() => {
-                // Toggle first background layer to show backdrop removal
-                const bgL = workspaceData.layers.find(l => l.type === "Background");
-                if (bgL) {
-                  setWorkspaceData(prev => ({
-                    ...prev,
-                    layers: prev.layers.map(l => l.id === bgL.id ? { ...l, visible: !l.visible } : l)
-                  }));
-                }
-              }}
-              className="p-2 text-gray-500 hover:text-white rounded cursor-pointer transition"
-              title="Toggle AI Isolated Background Layer"
+              onClick={() => setActiveTab("upgrade")}
+              className={`p-2.5 rounded-lg cursor-pointer transition ${activeTab === 'upgrade' ? 'bg-amber-950/60 text-amber-300 border border-amber-500/40' : 'text-gray-500 hover:text-gray-350 hover:bg-white/5'}`}
+              title="Premium Pricing Packages"
             >
-              <Scissors className="w-4.5 h-4.5 text-red-400" />
-            </div>
-
-            <div 
-              onClick={() => {
-                const subL = workspaceData.layers.find(l => l.type === "Subject" || l.type === "Product");
-                if (subL) setSelectedLayerId(subL.id);
-              }}
-              className="p-2 text-gray-500 hover:text-white rounded cursor-pointer transition"
-              title="Select Core Foreground Subject"
-            >
-              <Crop className="w-4.5 h-4.5 text-amber-500" />
+              <DollarSign className="w-5 h-5 text-rose-400" />
             </div>
           </div>
 
-          <div className="flex flex-col items-center space-y-3">
+          <div className="flex flex-col items-center space-y-3 w-full">
+            <div className="w-8 h-[1px] bg-white/10"></div>
+            
             <button
-              onClick={() => {
-                // Reset all custom overrides
-                setBrightnessVal(0);
-                setRawContrastVal(0);
-                setSaturationVal(0);
-                setCustomBokehVal(0);
-                setSkinSmoothPower(40);
-                setBlemishReduction(40);
-              }}
-              className="p-2 text-gray-500 hover:text-white rounded transition"
-              title="Restore Raw Presets Defaults"
+              onClick={() => setShowSecureGateway(true)}
+              className="p-2 bg-rose-950/30 text-rose-500 border border-rose-500/20 hover:border-rose-500 rounded-full transition cursor-pointer"
+              title="🔑 Enter Secured Developer Control Center"
             >
-              <RotateCcw className="w-4 h-4 text-orange-400" />
+              <Lock className="w-3.5 h-3.5" />
             </button>
 
-            <div className="w-8 h-[1px] bg-white/10"></div>
-
-            <div className="text-[9px] font-mono font-bold tracking-tight text-slate-500 text-center">
-              SEC
-            </div>
-            {/* Safe cloud lock toggle */}
-            <div 
-              onClick={() => setLocalProcessingFirst(!localProcessingFirst)}
-              className={`p-2 rounded-full cursor-pointer transition ${localProcessingFirst ? "bg-emerald-950/40 text-emerald-400 border border-emerald-500/30" : "bg-red-950/20 text-red-400"}`}
-              title={localProcessingFirst ? "Local Processing First: Verified Active" : "Cloud Sandbox Activated"}
-            >
-              {localProcessingFirst ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-            </div>
+            <span className="text-[8px] font-mono font-bold tracking-tighter text-slate-500 block uppercase">DEV</span>
           </div>
         </aside>
 
@@ -835,7 +1335,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
                     <img 
                       src={getActiveImageUrl()} 
                       alt="Raw unenhanced source" 
-                      className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+                      className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-all duration-500 ease-in-out"
                       style={{ 
                         filter: activePresetId === "old_photo" ? "sepia(0.8) contrast(0.6) brightness(0.8) grayscale(1)" : "contrast(0.7) brightness(0.9) saturate(0.6)",
                       }}
@@ -852,7 +1352,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
                         src={getActiveImageUrl()} 
                         alt="AI enhanced focus" 
                         style={getFilterStyle()} 
-                        className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+                        className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none transition-all duration-500 ease-in-out"
                       />
                     </div>
 
@@ -878,7 +1378,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
                           src={getActiveImageUrl()} 
                           alt="Main Active Canvas Asset" 
                           style={getFilterStyle()} 
-                          className="w-full h-full object-cover select-none"
+                          className="w-full h-full object-cover select-none transition-all duration-500 ease-in-out"
                         />
                       </div>
                     )}
@@ -902,7 +1402,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
                           ? "circle(38% at 50% 45%)" // simple simulation of extracted subject contour geometry
                           : undefined
                       }} 
-                      className={`absolute inset-0 w-full h-full object-cover select-none transition-all duration-300 pointer-events-none ${
+                      className={`absolute inset-0 w-full h-full object-cover select-none transition-all duration-500 ease-in-out pointer-events-none ${
                         !workspaceData.layers.find(l => l.type === "Background")?.visible ? "drop-shadow-[0_20px_50px_rgba(0,210,255,0.3)] animate-pulse" : ""
                       }`}
                     />
@@ -943,7 +1443,8 @@ The image displays an extremely clean focus on the foreground model with a vinta
                             top: layer.y !== undefined ? `${layer.y}%` : "40%",
                             maxWidth: "80%",
                             opacity: layer.opacity / 100,
-                            zIndex: isSelected ? 10 : 5
+                            zIndex: isSelected ? 10 : 5,
+                            mixBlendMode: (layer.blendMode as any) || "normal"
                           }}
                         >
                           <span className="absolute -top-5 left-0 px-1 py-0.5 text-[8px] font-bold uppercase tracking-widest leading-none bg-[#0a0a0d] border border-white/10 rounded">
@@ -1032,226 +1533,158 @@ The image displays an extremely clean focus on the foreground model with a vinta
           </main>
         )}
 
-        {activeTab === "assistant" && (
-          <main className="flex-1 bg-[#121217] relative flex flex-col p-5 overflow-y-auto">
-            <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col justify-between space-y-4">
-              
-              <div className="bg-[#151624]/60 border border-white/10 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-[#9D50BB]/25 border border-[#9D50BB]/40 p-2 rounded-lg">
-                    <Sparkles className="w-5 h-5 text-purple-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-display font-bold text-white uppercase tracking-wider">
-                      Module 7: Creative AI Assistant & Copywriter
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Generate viral short campaign outlines, visual asset taglines, or custom Photoshop instruction macros.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  {liveApiStatus === "healthy" ? (
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/20 uppercase">
-                      GEMINI ENGINE GRIPPED
-                    </span>
-                  ) : liveApiStatus === "quota_exceeded" ? (
-                    <span className="text-[10px] font-mono text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-500/20 uppercase animate-pulse">
-                      SANDBOX FAILSAFE (RESOURCES LIMITED)
-                    </span>
-                  ) : liveApiStatus === "high_demand" ? (
-                    <span className="text-[10px] font-mono text-orange-400 bg-orange-950/40 px-2 py-0.5 rounded border border-orange-500/20 uppercase animate-pulse">
-                      SANDBOX FAILSAFE (MODEL OVERLAID)
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 uppercase">
-                      LOCAL CORES NATIVE ACTIVE
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Chat Timeline representation */}
-              <div className="flex-1 bg-[#0c0d12] border border-white/10 rounded-xl p-4 overflow-y-auto min-h-[300px] flex flex-col space-y-3">
-                {chatHistory.map((item, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div 
-                      className={`max-w-[85%] rounded-lg p-3 text-xs leading-relaxed ${
-                        item.role === 'user' 
-                          ? 'bg-[#9D50BB]/20 border border-[#9D50BB]/40 text-slate-100 font-mono text-right' 
-                          : 'bg-[#151722] border border-white/5 text-slate-350 text-left'
-                      }`}
-                    >
-                      <div className="font-bold text-[10px] uppercase text-slate-500 mb-1">
-                        {item.role === 'user' ? 'You (Visual Director)' : 'Ultra Creative Brain'}
-                      </div>
-                      <div className="whitespace-pre-line font-space">
-                        {item.text}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {isTyping && (
-                  <div className="text-xs text-purple-400 animate-pulse font-mono pl-2">
-                    typing generative creative recommendation details...
-                  </div>
-                )}
-              </div>
-
-              {/* Quick AI Presets Prompt Suggestion Builders */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button
-                  onClick={() => handleSendMessage("Generate a commercial advertising copy poster layout with Outfit Bold headlines for this product.")}
-                  className="p-2 border border-white/5 bg-[#141521] hover:bg-[#1a1c2d] rounded text-[10px] font-semibold text-slate-300 text-center"
-                >
-                  📣 Ad Poster Layout
-                </button>
-                <button
-                  onClick={() => handleSendMessage("Draft high-latitude color correction guidelines to make this DSLR portrait look stunning.")}
-                  className="p-2 border border-white/5 bg-[#141521] hover:bg-[#1a1c2d] rounded text-[10px] font-semibold text-slate-300 text-center"
-                >
-                  🎨 DSLR Palette Blueprint
-                </button>
-                <button
-                  onClick={() => handleSendMessage("Provide a 15-second viral TikTok hook sequence using this image as the thumbnail.")}
-                  className="p-2 border border-white/5 bg-[#141521] hover:bg-[#1a1c2d] rounded text-[10px] font-semibold text-slate-300 text-center"
-                >
-                  🚀 TikTok / Reels Outline
-                </button>
-                <button
-                  onClick={() => handleSendMessage("Create a step-by-step restoration action list to heal dust scratches and colors in old archival photos.")}
-                  className="p-2 border border-white/5 bg-[#141521] hover:bg-[#1a1c2d] rounded text-[10px] font-semibold text-slate-300 text-center"
-                >
-                  🕰️ Family Memoir Heal
-                </button>
-              </div>
-
-              {/* Message box prompt input */}
-              <div className="flex gap-2 bg-[#0E0E12] border border-white/10 p-2 rounded-lg">
-                <input
-                  type="text"
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                  placeholder="Ask creative questions (e.g. 'Generate a product slogan for social stories resizing', 'Write visual grading CSS')..."
-                  className="flex-1 bg-[#0a0a0d] border border-transparent rounded px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-400"
-                />
-                <button
-                  onClick={() => handleSendMessage()}
-                  className="p-2 rounded bg-gradient-to-r from-[#00D2FF] to-[#9D50BB] text-white hover:brightness-110 transition"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
-
-            </div>
-          </main>
+        {activeTab === "dashboard" && (
+          <DashboardView
+            trialDays={trialDays}
+            setTrialDays={setTrialDays}
+            isPremiumPlan={isPremiumPlan}
+            activeTheme={activeTheme}
+            setActiveTab={setActiveTab}
+            sriLankaTime={sriLankaTime}
+          />
         )}
 
-        {activeTab === "batch" && (
-          <main className="flex-1 bg-[#121217] relative flex flex-col p-5 overflow-y-auto">
-            <div className="max-w-4xl mx-auto w-full space-y-6">
-              
-              <div className="bg-[#151624]/60 border border-white/10 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex gap-3 items-center">
-                  <div className="bg-emerald-950/50 border border-emerald-500/40 p-2 rounded-lg">
-                    <Layers3 className="w-5 h-5 text-emerald-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-display font-bold text-white uppercase tracking-wider">
-                      Module 10: Multi-threaded Batch Automation System
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Apply chosen Neural edits and custom resolutions upscaling across up to 10,000 files in parallel.
-                    </p>
-                  </div>
-                </div>
+        {activeTab === "presets" && (
+          <PresetStudioView
+            brightnessVal={brightnessVal}
+            setBrightnessVal={setBrightnessVal}
+            rawContrastVal={rawContrastVal}
+            setRawContrastVal={setRawContrastVal}
+            saturationVal={saturationVal}
+            setSaturationVal={setSaturationVal}
+            customBokehVal={customBokehVal}
+            setCustomBokehVal={setCustomBokehVal}
+            skinSmoothPower={skinSmoothPower}
+            setSkinSmoothPower={setSkinSmoothPower}
+            denoiseVal={denoiseVal}
+            setDenoiseVal={setDenoiseVal}
 
-                <span className="text-[10px] font-mono font-semibold bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded">
-                  LATENCY CORE: 12ms / thread
+            tempVal={tempVal}
+            setTempVal={setTempVal}
+            tintVal={tintVal}
+            setTintVal={setTintVal}
+            vibranceVal={vibranceVal}
+            setVibranceVal={setVibranceVal}
+            highlightsVal={highlightsVal}
+            setHighlightsVal={setHighlightsVal}
+            shadowsVal={shadowsVal}
+            setShadowsVal={setShadowsVal}
+            sharpenVal={sharpenVal}
+            setSharpenVal={setSharpenVal}
+
+            exportWidth={exportWidth}
+            setExportWidth={setExportWidth}
+            exportHeight={exportHeight}
+            setExportHeight={setExportHeight}
+            exportFileType={exportFileType}
+            setExportFileType={setExportFileType}
+
+            activePresetId={activePresetId}
+            activeTheme={activeTheme}
+            getActiveImageUrl={getActiveImageUrl}
+            getFilterStyle={getFilterStyle}
+          />
+        )}
+
+        {activeTab === "enhancement" && (
+          <EnhancementView
+            brightnessVal={brightnessVal}
+            setBrightnessVal={setBrightnessVal}
+            rawContrastVal={rawContrastVal}
+            setRawContrastVal={setRawContrastVal}
+            saturationVal={saturationVal}
+            setSaturationVal={setSaturationVal}
+            customBokehVal={customBokehVal}
+            setCustomBokehVal={setCustomBokehVal}
+            skinSmoothPower={skinSmoothPower}
+            setSkinSmoothPower={setSkinSmoothPower}
+            blemishReduction={blemishReduction}
+            setBlemishReduction={setBlemishReduction}
+            denoiseVal={denoiseVal}
+            setDenoiseVal={setDenoiseVal}
+            activePresetId={activePresetId}
+            activeTheme={activeTheme}
+            getActiveImageUrl={getActiveImageUrl}
+            getFilterStyle={getFilterStyle}
+          />
+        )}
+
+        {activeTab === "design" && (
+          <DesignAssistantView
+            chatHistory={chatHistory}
+            isTyping={isTyping}
+            assistantPrompt={chatMessage}
+            setAssistantPrompt={setChatMessage}
+            handleSendMessage={handleSendMessage}
+            generativeFillPrompt={generativeFillPrompt}
+            setGenerativeFillPrompt={setGenerativeFillPrompt}
+            generativeFillCategory={generativeFillCategory}
+            setGenerativeFillCategory={setGenerativeFillCategory}
+            isGeneratingFill={isGeneratingFill}
+            triggerGenerativeFill={triggerGenerativeFill}
+            activeTheme={activeTheme}
+            liveApiStatus={liveApiStatus}
+          />
+        )}
+
+        {activeTab === "export" && (
+          <ExportCenterView
+            selectedExportProfile={selectedExportProfile}
+            setSelectedExportProfile={setSelectedExportProfile}
+            isExporting={isExporting}
+            exportSuccessMessage={exportSuccessMessage}
+            triggerExport={triggerExport}
+            activePresetId={activePresetId}
+            activeTheme={activeTheme}
+            getActiveImageUrl={getActiveImageUrl}
+            getFilterStyle={getFilterStyle}
+          />
+        )}
+
+        {activeTab === "license" && (
+          <main className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className={`p-5 rounded-2xl border ${activeTheme.border} ${activeTheme.cardBg} flex flex-col md:flex-row items-start md:items-center justify-between gap-4`}>
+              <div className="space-y-1">
+                <h2 className="text-base font-display font-black text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                  👑 corporate machine seats
+                </h2>
+                <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
+                  Enterprise credentials register automatically inside local cloud partitions. Register motherboard UUID serial key matching below:
+                </p>
+              </div>
+
+              <div className="shrink-0">
+                <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-950/60 border border-amber-500/40 p-2 rounded">
+                  Status: {isPremiumPlan ? "LICENSED PRO SEAT" : "FREE TRIAL SEAT"}
                 </span>
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Queue Settings */}
-                <div className="bg-[#0c0d12] border border-white/10 rounded-xl p-4 space-y-3">
-                  <h3 className="text-xs font-mono font-bold uppercase text-slate-400 pb-2 border-b border-white/5">
-                    1. Pipeline Target Filter
-                  </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <LicenseHandler
+                licenseKey={licenseKey}
+                setLicenseKey={setLicenseKey}
+                isLicenseActivated={isLicenseActivated}
+                setIsLicenseActivated={setIsLicenseActivated}
+                setIsPremiumPlan={setIsPremiumPlan}
+                licenseError={licenseError}
+                setLicenseError={setLicenseError}
+              />
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-semibold text-slate-500 block">AI Operations Set</label>
-                    <div className="space-y-1 text-xs">
-                      {[
-                        "Remove All Backgrounds (Isolated Contour Alpha)",
-                        "Autofit Crop to Aspect Ratio",
-                        "Sub-pixel Portrait Face Recovery Boost",
-                        "Equalize Exposure & Lighting Curves",
-                        "Cinematic Gold Film Tint Preset"
-                      ].map((task, index) => (
-                        <label key={index} className="flex items-center gap-2 p-1.5 rounded hover:bg-white/5 cursor-pointer">
-                          <input type="checkbox" defaultChecked={index < 2} className="accent-cyan-400" />
-                          <span className="text-slate-300 text-[11px]">{task}</span>
-                        </label>
-                      ))}
-                    </div>
+              <div className="bg-black/35 border border-white/5 rounded-xl p-5 space-y-4 font-mono text-xs text-left">
+                <h3 className="text-xs font-bold uppercase text-slate-400">Motherboard hardware signature</h3>
+                <div className="space-y-2 text-slate-400 font-mono">
+                  <div className="flex justify-between">
+                    <span>SEATING SECTOR UUID:</span>
+                    <span className="text-cyan-400 font-bold">X64-PRO-COLOMBO-991A</span>
                   </div>
-                </div>
-
-                {/* Queue Simulation */}
-                <div className="bg-[#0c0d12] border border-white/10 rounded-xl p-4 col-span-2 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-mono font-bold uppercase text-slate-400">
-                      2. Real-time Batch Automation Queue Simulation
-                    </h3>
-                    <span className="text-[10px] font-mono text-slate-500">6 tasks active • 1.2 GB / s writing bandwidth</span>
+                  <div className="flex justify-between">
+                    <span>SECURITY COMPLIANCY:</span>
+                    <span className="text-emerald-450 font-bold">MIL-STD AES-256</span>
                   </div>
-
-                  <div className="space-y-2 font-mono text-xs max-h-[300px] overflow-y-auto pr-1">
-                    {[
-                      { file: "DSC_8901_ModelPortrait_Raw.CR3", size: "84.2 MB", progress: 100, state: "COMPLETE", label: "Skin smooth & background alpha isolated." },
-                      { file: "DSC_8902_ModelPortrait_Raw.CR3", size: "90.1 MB", progress: 100, state: "COMPLETE", label: "Skin smooth & background alpha isolated." },
-                      { file: "DSC_8903_ModelPortrait_Raw.CR3", size: "86.4 MB", progress: 65, state: "RENDERING", label: "Extracting rule-of-thirds facial layers..." },
-                      { file: "ProductFlask_Catalog_01.PNG", size: "12.8 MB", progress: 0, state: "QUEUED", label: "Awaiting volumetric shadow matrix overlay..." },
-                      { file: "ProductFlask_Catalog_02.PNG", size: "14.5 MB", progress: 0, state: "QUEUED", label: "Awaiting volumetric shadow matrix overlay..." },
-                      { file: "HeritageArchivalSepia_1932.TIFF", size: "235 MB", progress: 0, state: "QUEUED", label: "Awaiting neural microscratch fusion rendering..." }
-                    ].map((row, i) => (
-                      <div key={i} className="bg-[#141622] rounded border border-white/5 p-2 flex items-center justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 justify-between">
-                            <span className="font-bold truncate text-[11px] text-slate-200">{row.file}</span>
-                            <span className="text-slate-500 text-[9px] shrink-0">{row.size}</span>
-                          </div>
-                          <p className="text-[10px] text-[#00D2FF]/80 italic mt-0.5">{row.label}</p>
-                          <div className="w-full bg-[#0a0a0c] h-1 rounded mt-1.5 overflow-hidden">
-                            <div className="bg-[#00D2FF] h-full" style={{ width: `${row.progress}%` }} />
-                          </div>
-                        </div>
-
-                        <div className="shrink-0 text-right">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                            row.state === "COMPLETE" ? "text-emerald-400 bg-emerald-950/40" :
-                            row.state === "RENDERING" ? "text-amber-400 bg-amber-950/40 animate-pulse" :
-                            "text-slate-400 bg-slate-900"
-                          }`}>
-                            {row.state} ({row.progress}%)
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex justify-end gap-3 pt-2">
-                    <button className="px-3 py-1.5 text-xs font-mono font-bold bg-[#1d1f30] hover:bg-[#2c2f4a] text-slate-300 rounded border border-white/10">
-                      Configure FTP Output
-                    </button>
-                    <button className="px-4 py-1.5 text-xs font-mono font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded">
-                      Trigger Parallel GPU Thread
-                    </button>
+                  <div className="flex justify-between">
+                    <span>HARDWARE ACCELERATION:</span>
+                    <span className="text-white">CUDA PIPELINE DIRECT3D_12</span>
                   </div>
                 </div>
               </div>
@@ -1259,116 +1692,83 @@ The image displays an extremely clean focus on the foreground model with a vinta
           </main>
         )}
 
-        {activeTab === "pro-features" && (
-          <main className="flex-1 bg-[#121217] relative flex flex-col p-5 overflow-y-auto">
-            <div className="max-w-3xl mx-auto w-full space-y-6">
-              
-              <div className="bg-gradient-to-r from-amber-950/60 to-[#0E0E12] border border-amber-500/30 rounded-xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h2 className="text-lg font-display font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-2">
-                    👑 Unlock Unlimited Processing License
-                  </h2>
-                  <p className="text-xs text-slate-300 max-w-xl">
-                    Get full unlimited CUDA thread operations, premium 70s-90s film grain templates, and vector font replacement tools. Use serial key activation or process via our invoice generator.
-                  </p>
-                </div>
+        {activeTab === "themes" && (
+          <main className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="space-y-1">
+              <span className="text-[10px] font-mono tracking-widest text-[#00D2FF] font-black uppercase bg-[#00D2FF]/10 px-2.5 py-1 rounded">
+                🎨 Display Atmosphere Calibrators
+              </span>
+              <h2 className="text-2xl font-display font-extrabold text-white tracking-tight">
+                Hot-Swap Color Themes Matrix
+              </h2>
+              <p className="text-xs text-slate-400 font-sans">
+                Instantly transmute entire layouts, sidebars, active highlight elements and border gradients safely.
+              </p>
+            </div>
 
-                <div className="shrink-0">
-                  <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-950/60 border border-amber-500/40 p-2 rounded">
-                    Current Plane: {isPremiumPlan ? "LIMITED ENTERPRISE PRO" : "FREE TRIAL CONTEXT"}
-                  </span>
-                </div>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+              {APP_THEMES.map((theme) => {
+                const isSelected = activeThemeId === theme.id;
+                const matchesPlan = !theme.isPro || isPremiumPlan;
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {/* Activate Box using rich single-PC custom LicenseHandler */}
-                <LicenseHandler
-                  licenseKey={licenseKey}
-                  setLicenseKey={setLicenseKey}
-                  isLicenseActivated={isLicenseActivated}
-                  setIsLicenseActivated={setIsLicenseActivated}
-                  setIsPremiumPlan={setIsPremiumPlan}
-                  licenseError={licenseError}
-                  setLicenseError={setLicenseError}
-                />
+                return (
+                  <div
+                    key={theme.id}
+                    onClick={() => {
+                      if (!matchesPlan) {
+                        alert(`🔑 PRO THEME LOCKED: Skin '${theme.name}' requires an active Business Pro license serial registration.`);
+                        setActiveTab("upgrade");
+                        return;
+                      }
+                      setActiveThemeId(theme.id);
+                      localStorage.setItem("media_studio_current_theme_id", theme.id);
+                    }}
+                    className={`p-5 rounded-2xl border text-left cursor-pointer transition flex flex-col justify-between h-44 relative overflow-hidden ${
+                      isSelected 
+                        ? `border-cyan-500 scale-[1.01] ${theme.cardBg} ${theme.glowClass}` 
+                        : `${theme.cardBg} border-white/5 hover:border-white/10`
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold font-space text-white tracking-wide block">{theme.name}</span>
+                        {theme.isPro && (
+                          <span className="text-[9px] font-mono text-amber-500 font-bold bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-500/30">PRO EDITION</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-normal line-clamp-2">
+                        {theme.description}
+                      </p>
+                    </div>
 
-                {/* Simulated Invoicing Box */}
-                <div className="bg-[#0c0d12] border border-white/10 rounded-xl p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-mono font-bold uppercase text-slate-400">
-                      Module 12: Pro Upgrade Invoice Generator
-                    </h3>
-                    <button
-                      onClick={handleGenerateInvoice}
-                      className="px-2.5 py-1 bg-[#1c1d2e] border border-white/10 hover:border-cyan-400 rounded text-[10px] font-mono text-slate-300"
-                    >
-                      Generate Mock invoice
-                    </button>
+                    <div className="flex items-center justify-between border-t border-white/5 pt-2 font-mono text-[9.5px]">
+                      <span className="text-slate-500 capitalize">{theme.type} layout pipeline</span>
+                      {isSelected ? (
+                        <span className="text-cyan-400 font-bold">✓ ACTIVE SKIN</span>
+                      ) : !matchesPlan ? (
+                        <span className="text-rose-400 font-bold">🔒 LOCKED (PRO)</span>
+                      ) : (
+                        <span className="text-slate-500 hover:text-white transition">Apply Skin</span>
+                      )}
+                    </div>
                   </div>
-
-                  {generatedInvoice ? (
-                    <div className="bg-[#141521] border border-white/5 rounded-lg p-3 text-xs space-y-2 leading-relaxed font-mono">
-                      <div className="flex justify-between border-b border-white/5 pb-1">
-                        <span className="text-[10px] text-slate-500">INVOICE NO:</span>
-                        <span className="text-slate-300 font-bold">{generatedInvoice.number}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[10px] text-slate-500">DATE PRINTED:</span>
-                        <span className="text-slate-300">{generatedInvoice.date}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[10px] text-slate-500">BILLED TO:</span>
-                        <span className="text-slate-300 font-bold">{generatedInvoice.paidBy}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[10px] text-slate-500">ITEM VALUE:</span>
-                        <span className="text-slate-300">{generatedInvoice.price}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-white/5 pt-1 text-[11px] font-bold">
-                        <span className="text-slate-500">PAYMENT STATUS:</span>
-                        <span className="text-emerald-400">{generatedInvoice.status}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="border border-dashed border-white/10 rounded-lg p-8 text-center text-xs text-slate-500 font-mono">
-                      No invoices currently registered. Click above to print transaction details instantly.
-                    </div>
-                  )}
-                </div>
-              </div>
+                );
+              })}
             </div>
           </main>
         )}
 
-        {activeTab === "projects" && (
-          <ProjectManager
-            onLoadAssetInEditor={(presetId, assetName) => {
-              setActivePresetId(presetId);
-              setCustomImageName(assetName);
-              // Auto apply relative view modes for high contrast comparison
-              if (presetId === "old_photo") {
-                setViewMode("split");
-              } else {
-                setViewMode("enhanced");
-              }
-              setActiveTab("editor");
-            }}
-            onTriggerMockExport={(exportProfileId, onComplete) => {
-              const matchedProfile = EXPORT_PROFILES.find(p => p.id === exportProfileId);
-              const formattedName = matchedProfile 
-                ? `${matchedProfile.platform} - ${matchedProfile.useCase} (${matchedProfile.dimensions})` 
-                : "Standard Platform Social Grid Layout";
-              
-              // Emulate native CUDA downsampling thread compiler delay
-              setTimeout(() => {
-                onComplete(formattedName);
-              }, 1200);
-            }}
+        {activeTab === "upgrade" && (
+          <UpgradeView
+            isPremiumPlan={isPremiumPlan}
+            setIsPremiumPlan={setIsPremiumPlan}
+            activeTheme={activeTheme}
+            triggerInvoiceAction={handleGenerateInvoice}
           />
         )}
 
         {/* INSPECTOR PANEL: DETAILED SLIDERS & ANALYSIS (RIGHT) --- */}
-        {activeTab !== "projects" && (
+        {activeTab === "editor" && (
           <aside className="w-80 border-l border-white/10 flex flex-col bg-[#0E0E12] divide-y divide-white/10 overflow-y-auto shrink-0 select-none">
           
           {/* Preset look Selectors (Module 5 Cinematic DSLR Look) */}
@@ -1521,6 +1921,22 @@ The image displays an extremely clean focus on the foreground model with a vinta
                 />
               </div>
 
+              {/* Denoise slider */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-450 text-[11px]">High-ISO Signal Denoise</span>
+                  <span className="font-mono text-cyan-400">{denoiseVal}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={denoiseVal}
+                  onChange={(e) => setDenoiseVal(Number(e.target.value))}
+                  className="w-full accent-cyan-400 h-1 bg-[#1a1b2d] rounded-lg cursor-pointer"
+                />
+              </div>
+
               {/* Face Retouch (Smooth) slider */}
               <div className="space-y-2 border-t border-white/5 pt-2">
                 <span className="text-[9px] text-[#9D50BB] font-mono font-bold uppercase block">
@@ -1567,47 +1983,62 @@ The image displays an extremely clean focus on the foreground model with a vinta
             </h3>
 
             <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
-              {workspaceData.layers.map((layer) => {
-                const isSelected = selectedLayerId === layer.id;
-                const isFont = layer.fontInfo !== undefined;
+              <AnimatePresence>
+                {workspaceData.layers.map((layer) => {
+                  const isSelected = selectedLayerId === layer.id;
+                  const isFont = layer.fontInfo !== undefined;
 
-                return (
-                  <div
-                    key={layer.id}
-                    onClick={() => selectLayer(layer.id)}
-                    className={`group flex items-center p-2 rounded transition cursor-pointer border ${
-                      isSelected 
-                        ? 'bg-[#1c1d2e] border-cyan-400/60 shadow-[0_0_8px_rgba(0,210,255,0.15)]' 
-                        : 'bg-[#131422]/70 hover:bg-white/5 border-transparent'
-                    }`}
-                  >
-                    <div className="mr-2">
-                      <button
-                        onClick={(e) => toggleLayerVisibility(layer.id, e)}
-                        className="text-slate-500 hover:text-white"
-                        title="Toggle Layer Render State"
-                      >
-                        {layer.visible ? <Eye className="w-3.5 h-3.5 text-cyan-400" /> : <EyeOff className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
+                  return (
+                    <motion.div
+                      layout
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: layer.visible ? 1 : 0.5, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      key={layer.id}
+                      onClick={() => selectLayer(layer.id)}
+                      className={`group flex items-center p-2 rounded transition cursor-pointer border ${
+                        isSelected 
+                          ? 'bg-[#1c1d2e] border-cyan-400/60 shadow-[0_0_8px_rgba(0,210,255,0.15)]' 
+                          : 'bg-[#131422]/70 hover:bg-white/5 border-transparent'
+                      }`}
+                    >
+                      <div className="mr-2">
+                        <button
+                          onClick={(e) => toggleLayerVisibility(layer.id, e)}
+                          className="text-slate-500 hover:text-white"
+                          title="Toggle Layer Render State"
+                        >
+                          {layer.visible ? <Eye className="w-3.5 h-3.5 text-cyan-400" /> : <EyeOff className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
 
-                    <div className="flex-1 flex flex-col min-w-0">
-                      <span className="text-[11px] font-bold truncate text-slate-200">
-                        {layer.name}
-                      </span>
-                      <span className="text-[9px] text-slate-500 font-mono uppercase">
-                        {layer.type} • Opacity: {layer.opacity}%
-                      </span>
-                    </div>
+                      <div className="flex-1 flex flex-col min-w-0">
+                        <span className="text-[11px] font-bold truncate text-slate-200">
+                          {layer.name}
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-mono uppercase">
+                          {layer.type} • Opacity: {layer.opacity}%
+                        </span>
+                      </div>
 
-                    {isFont && (
-                      <span className="text-[8px] font-mono text-purple-400 bg-purple-950/80 px-1 border border-purple-800/30 rounded shrink-0">
-                        FONT MATCHED
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+                      <div className="flex items-center gap-2">
+                        {isFont && (
+                          <span className="text-[8px] font-mono text-purple-400 bg-purple-950/80 px-1 border border-purple-800/30 rounded shrink-0">
+                            FONT MATCHED
+                          </span>
+                        )}
+                        <button
+                          onClick={(e) => deleteLayer(layer.id, e)}
+                          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-opacity"
+                          title="Delete Layer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
             </div>
 
             {/* If currently selected layer has custom Matched fonts (Module 4) */}
@@ -1650,6 +2081,71 @@ The image displays an extremely clean focus on the foreground model with a vinta
                         className="w-7 h-5 border-none p-0 bg-transparent block"
                       />
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* General Layer Modifiers */}
+            {activeLayer && (
+              <div className="bg-[#141521] border border-white/10 rounded p-3 space-y-2 mt-2">
+                <div className="flex items-center gap-1">
+                  <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-xs font-mono font-bold text-slate-300">
+                    Composition
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] text-slate-500 uppercase block">Blending Mode</label>
+                  <select
+                    value={activeLayer.blendMode || "normal"}
+                    onChange={(e) => handleUpdateLayerBlendMode(e.target.value)}
+                    className="w-full bg-[#0a0a0d] border border-white/10 rounded px-2 py-1 text-xs text-white focus:border-cyan-400 focus:outline-none"
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="multiply">Multiply</option>
+                    <option value="screen">Screen</option>
+                    <option value="overlay">Overlay</option>
+                    <option value="soft-light">Soft Light</option>
+                    <option value="hard-light">Hard Light</option>
+                    <option value="color-dodge">Color Dodge</option>
+                    <option value="color-burn">Color Burn</option>
+                    <option value="darken">Darken</option>
+                    <option value="lighten">Lighten</option>
+                    <option value="difference">Difference</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5 pt-2">
+                  <div className="flex justify-between text-[9px] font-mono text-slate-500 uppercase">
+                    <span>Alpha Opacity Control</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={activeLayer.opacity}
+                      onChange={(e) => handleUpdateLayerOpacity(parseInt(e.target.value))}
+                      className="w-full accent-cyan-400 h-1 bg-white/10 rounded cursor-pointer"
+                    />
+                    <div className="flex items-center rounded bg-black/40 border border-white/10 px-1">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="100"
+                        value={activeLayer.opacity} 
+                        onChange={(e) => handleUpdateLayerOpacity(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                        className="w-7 bg-transparent text-xs text-center text-cyan-400 font-mono focus:outline-none hide-arrows" 
+                      />
+                      <span className="text-[10px] text-slate-500 font-mono">%</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-[8px] text-slate-600 font-mono">
+                    <span>Transparent</span>
+                    <span>Opaque</span>
                   </div>
                 </div>
               </div>
@@ -1715,6 +2211,33 @@ The image displays an extremely clean focus on the foreground model with a vinta
               Output Resizer Hub
             </h3>
 
+            {/* Real-time Render Specimen Preview */}
+            <div className="bg-[#0f1016] border border-white/5 rounded-lg p-2.5 flex flex-col items-center justify-center space-y-2">
+              <div className="flex justify-between items-center w-full">
+                <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest block font-bold">Resizer Specimen</span>
+                <span className="text-[8px] font-mono text-cyan-400 bg-cyan-950 px-1 py-0.5 rounded font-bold uppercase">
+                  {EXPORT_PROFILES.find(p => p.id === selectedExportProfile)?.aspectRatio}
+                </span>
+              </div>
+              
+              <div className="relative overflow-hidden rounded bg-black/60 flex items-center justify-center w-full border border-white/10 p-1">
+                <div className={`overflow-hidden rounded relative flex items-center justify-center transition-all duration-300 ${getAppExportAspectRatioClass(selectedExportProfile)}`}>
+                  <img 
+                    src={getActiveImageUrl()} 
+                    style={getFilterStyle()}
+                    className="w-full h-full object-cover transition-all duration-500 ease-in-out"
+                    referrerPolicy="no-referrer"
+                    alt="Active export thumbnail preview"
+                  />
+                </div>
+              </div>
+
+              <div className="w-full flex justify-between items-center text-[8.5px] font-mono text-slate-500">
+                <span>Platform: {EXPORT_PROFILES.find(p => p.id === selectedExportProfile)?.platform}</span>
+                <span className="text-purple-400 font-bold">{EXPORT_PROFILES.find(p => p.id === selectedExportProfile)?.dimensions}</span>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-1.5">
                 {EXPORT_PROFILES.map((profile) => (
@@ -1765,23 +2288,23 @@ The image displays an extremely clean focus on the foreground model with a vinta
 
           <div className="grid grid-cols-3 gap-1.5">
             {DEMO_PRESETS.map((dp) => (
-              <button
-                key={dp.id}
-                onClick={() => {
-                  setActivePresetId(dp.id);
-                  // Auto apply relative look
-                  if (dp.id === "portrait") setViewMode("enhanced");
-                  else if (dp.id === "product") setViewMode("enhanced");
-                  else if (dp.id === "old_photo") setViewMode("enhanced");
-                }}
-                className={`relative h-12 rounded overflow-hidden border ${activePresetId === dp.id ? "border-[#00D2FF]" : "border-white/10 opacity-60 hover:opacity-100"} transition`}
-                title={dp.description}
-              >
-                <img src={dp.url} className="w-full h-full object-cover" />
-                <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[8px] font-mono text-center block truncate px-1 text-slate-300">
-                  {dp.id === "old_photo" ? "Archival" : dp.id === "portrait" ? "Portrait" : "Flask"}
-                </span>
-              </button>
+                  <button
+                    key={dp.id}
+                    onClick={() => {
+                      setActivePresetId(dp.id);
+                      // Auto apply relative look
+                      if (dp.id === "portrait") setViewMode("enhanced");
+                      else if (dp.id === "product") setViewMode("enhanced");
+                      else if (dp.id === "old_photo") setViewMode("enhanced");
+                    }}
+                    className={`relative h-12 rounded overflow-hidden border ${activePresetId === dp.id ? "border-[#00D2FF]" : "border-white/10 opacity-60 hover:opacity-100"} transition-all duration-300 ease-out flex-shrink-0 cursor-pointer`}
+                    title={dp.description}
+                  >
+                    <img src={dp.url} className="w-full h-full object-cover" />
+                    <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[8px] font-mono text-center block truncate px-1 text-slate-300">
+                      {dp.id === "old_photo" ? "Archival" : dp.id === "portrait" ? "Portrait" : "Flask"}
+                    </span>
+                  </button>
             ))}
           </div>
         </div>
@@ -1793,7 +2316,7 @@ The image displays an extremely clean focus on the foreground model with a vinta
           </div>
 
           <div className="h-16 w-28 shrink-0 rounded bg-black/40 border border-[#00D2FF]/60 flex items-center justify-center relative overflow-hidden">
-            <img src={getActiveImageUrl()} className="opacity-40 grayscale blur-[1px] w-full h-full object-cover" />
+            <img src={getActiveImageUrl()} className="opacity-40 grayscale blur-[1px] w-full h-full object-cover transition-all duration-500 ease-in-out" />
             <div className="absolute inset-0 bg-black/60 flex flex-col justify-center items-center text-center p-1 font-mono">
               <span className="text-[8px] font-bold uppercase text-[#00D2FF]">Subject layer</span>
               <span className="text-[7px] text-slate-400">Isolated</span>
@@ -1928,6 +2451,38 @@ The image displays an extremely clean focus on the foreground model with a vinta
         </div>
       )}
 
+      {/* Global Footer (About / Contact / Navigation Links) */}
+      <div className={`px-4 py-3 border-t ${activeTheme.border} ${activeTheme.headerBg} backdrop-blur-md bg-opacity-90 flex flex-col md:flex-row items-center justify-between text-[11.5px] font-mono select-none z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.1)] gap-3 md:gap-0`}>
+        <div className="flex flex-wrap items-center justify-center space-x-3 sm:space-x-4">
+           <span className="font-bold text-slate-300 tracking-wider">AIMEDIA STUDIOULTRAX</span>
+           <span className="text-slate-500 hidden sm:inline">|</span>
+           <a href="https://chanukaofficial.com" target="_blank" rel="noreferrer" className="text-cyan-400 hover:text-cyan-300 transition flex items-center gap-1.5 pointer-events-auto cursor-pointer font-semibold">
+             <Mail className="w-4 h-4" /> chanukaofficial.com
+           </a>
+           <span className="text-slate-500 hidden sm:inline">|</span>
+           <a href="https://wa.me/94760666970" target="_blank" rel="noreferrer" className="text-emerald-400 hover:text-emerald-300 transition flex items-center gap-1.5 pointer-events-auto cursor-pointer font-semibold">
+             <Smartphone className="w-4 h-4" /> Contact Us: +94 760666970
+           </a>
+        </div>
+        
+        <div className="flex items-center space-x-4 pointer-events-auto">
+           <button onClick={() => setShowAboutModal(true)} className="text-slate-400 hover:text-white transition">About Us</button>
+           <button onClick={() => setShowPaymentModal(true)} className="text-slate-400 hover:text-white transition">Payment Options</button>
+           <span className="text-cyan-300 font-mono tracking-wider bg-cyan-950/40 border border-cyan-800/50 px-2 py-0.5 rounded shadow-[0_0_8px_rgba(34,211,238,0.1)] font-bold">By Vibe Motion By Dilshan</span>
+        </div>
+      </div>
+
+      {showAboutModal && <AboutModal onClose={() => setShowAboutModal(false)} />}
+      {showPaymentModal && <PaymentModal onClose={() => setShowPaymentModal(false)} />}
+      {showSecureGateway && (
+        <SecureGateway
+          onClose={() => setShowSecureGateway(false)}
+          onAccessGranted={() => {
+            setShowSecureGateway(false);
+            setIsDevModeActive(true);
+          }}
+        />
+      )}
     </div>
   );
 }
